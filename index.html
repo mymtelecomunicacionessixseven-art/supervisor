@@ -486,7 +486,9 @@ function periodos() {
   const st = $('#f-tecnico'); st.innerHTML = '<option value="">Todos</option>' + [...TEC].sort((a, b) => a.corto.localeCompare(b.corto, 'es')).map(t => `<option value="${t.i}">${esc(t.corto)}</option>`).join('');
   st.value = estado.tecnico;
   const g = new Date(D.generado);
-  $('#origen').textContent = `Torre MyM · datos al ${g.toLocaleDateString('es-PE')} ${g.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`;
+  const horas = (Date.now() - g.getTime()) / 36e5;
+  $('#origen').textContent = `Torre MyM · datos al ${g.toLocaleDateString('es-PE')} ${g.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}${horas > 30 ? ` · atrasados ${Math.floor(horas / 24) || 1} día(s): avisa a la oficina` : ''}`;
+  $('#origen').style.color = horas > 30 ? 'var(--mal)' : '';
   $('#txt-fuente').textContent = `Datos de la Torre del ${D.desde} al ${D.hasta} (instalaciones desde ${D.desdeInst} para enlazar averías). Unidades y placas del ERP.${D.cargadoEl ? ` Cargados al servidor el ${new Date(D.cargadoEl).toLocaleString('es-PE')} por ${D.cargadoPor}.` : ''} Los reportes y evidencias se conservan al actualizar.`;
 }
 const enPeriodo = f => !estado.periodo || f.startsWith(estado.periodo);
