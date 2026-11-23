@@ -292,7 +292,7 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
   <section class="vista" id="v-puntualidad">
     <div>
       <h2>Puntualidad</h2>
-      <p class="intro">La hora de llegada es la marca <strong>EN DOMICILIO</strong> del técnico en la Torre, comparada con la hora de asistencia, que es el <strong>inicio de la franja</strong>: en la franja 08:00–10:00 se debe llegar a las 08:00, y llegar a las 08:30 son 30 minutos de tardanza. Puntual: llega antes o a la hora. Las órdenes sin marca EN DOMICILIO se cuentan aparte, porque sin marca no hay hora de llegada.</p>
+      <p class="intro">La hora de llegada es la marca <strong>EN DOMICILIO</strong> del técnico en la Torre, comparada con la hora de asistencia, que es el <strong>inicio de la franja</strong>: en la franja 08:00–10:00 se debe llegar a las 08:00, y llegar a las 08:30 son 30 minutos de tardanza. Hay <strong id="tol-txt">10</strong> minutos de tolerancia: hasta las 08:10 todavía es puntual. Las órdenes sin marca EN DOMICILIO se cuentan aparte, porque sin marca no hay hora de llegada.</p>
     </div>
     <div class="fichas" id="fichas-punt"></div>
     <div class="panel">
@@ -367,6 +367,7 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
         <label class="campo"><span>Convertibilidad mínima (%)</span><input type="number" id="m-conv" min="0" max="100" step="1"></label>
         <label class="campo"><span>Averías de infancia máximas (% de lo instalado)</span><input type="number" id="m-inf" min="0" max="100" step="0.1"></label>
         <label class="campo"><span>Puntualidad mínima (%)</span><input type="number" id="m-punt" min="0" max="100" step="1"></label>
+        <label class="campo"><span>Tolerancia de llegada (minutos)</span><input type="number" id="m-tol" min="0" max="60" step="1"></label>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" id="btn-metas">Guardar metas</button><span id="metas-estado" class="estado-envio"></span></div>
       <p class="intro" id="txt-fuente"></p>
@@ -443,7 +444,7 @@ const PARTES = {
 };
 PARTES.otro = PARTES.van.filter(p => p !== 'Sistema GLP');
 const DOCS = ['Licencia de conducir', 'SOAT vigente', 'Revisión técnica vigente', 'Tarjeta de propiedad'];
-const METAS_DEF = { conv: 85, inf: 3, punt: 90 };
+const METAS_DEF = { conv: 85, inf: 3, punt: 90, tol: 10 };
 const MAX_VIDEO = 20 * 1024 * 1024;
 
 // ───────────────────────── Utilidades ─────────────────────────
@@ -546,8 +547,9 @@ function calcAver() {
 function claseLlegada(x) {
   if (!x.franja) return null;
   if (!x.llegada) return 'sin';
-  const [ini, fin] = x.franja.split('-').map(hm); const m = hm(x.llegada);
-  return m < ini ? 'antes' : m === ini ? 'en' : 'tarde';  // la hora de asistencia es el inicio de la franja
+  const ini = hm(x.franja.slice(0, 5)); const m = hm(x.llegada);
+  // la hora de asistencia es el inicio de la franja; hasta METAS.tol minutos después aún es puntual
+  return m < ini ? 'antes' : m <= ini + (METAS.tol ?? 10) ? 'en' : 'tarde';
 }
 // Ranking: puntaje ponderado de las evaluaciones (siempre de todos los técnicos del periodo)
 const PESOS = { conv: 35, inf: 25, punt: 25, unid: 15 };
@@ -686,16 +688,16 @@ function render() {
   // Puntualidad
   $('#fichas-punt').innerHTML =
     ficha('Puntualidad', f1(punt.punt), `meta ≥ ${METAS.punt} % · ${punt.medidas} llegadas medidas`, sp) +
-    ficha('Llegadas tarde', String(punt.tarde), punt.tarde ? `después del inicio de la franja · ${punt.minProm} min en promedio` : 'después del inicio de la franja', punt.tarde ? 'alerta' : 'ok') +
+    ficha('Llegadas tarde', String(punt.tarde), `más de ${METAS.tol} min después del inicio${punt.tarde ? ' · ' + punt.minProm + ' min de tardanza promedio' : ''}`, punt.tarde ? 'alerta' : 'ok') +
     ficha('Sin marca EN DOMICILIO', String(punt.sin), 'órdenes con franja y sin hora de llegada', punt.sin ? 'mal' : 'ok');
-  $('#t-punt').innerHTML = `<thead><tr><th>Técnico</th><th class="n">Medidas</th><th class="n">Antes</th><th class="n">A la hora</th><th class="n">Tarde</th><th class="n ocultar-movil">Tardanza prom.</th><th class="n">Sin marca</th><th class="n">Puntualidad</th><th class="n">Reportes</th></tr></thead><tbody>` +
+  $('#t-punt').innerHTML = `<thead><tr><th>Técnico</th><th class="n">Medidas</th><th class="n">Antes</th><th class="n">A tiempo</th><th class="n">Tarde</th><th class="n ocultar-movil">Tardanza prom.</th><th class="n">Sin marca</th><th class="n">Puntualidad</th><th class="n">Reportes</th></tr></thead><tbody>` +
     (punt.filas.length ? punt.filas.map(r => {
       const s = semaforo(r.punt, METAS.punt, true); const abierto = estado.abiertoPunt === r.t;
       let h = `<tr class="fila-tec" data-abrir="punt" data-t="${r.t}" tabindex="0" aria-expanded="${abierto}"><td><strong>${esc(TEC[r.t].corto)}</strong></td><td class="n">${r.medidas}</td><td class="n">${r.antes}</td><td class="n">${r.en}</td><td class="n">${r.tarde}</td><td class="n ocultar-movil">${r.tarde ? r.promTarde + ' min' : ''}</td><td class="n">${r.sin || ''}</td><td class="n"><span class="pill ${s}">${f1(r.punt)}</span></td><td class="n">${nRep('puntualidad', r.t) || ''}</td></tr>`;
       if (abierto) {
         const ords = r.ordenes.filter(x => claseLlegada(x) !== 'en' && claseLlegada(x) !== 'antes').concat(r.ordenes.filter(x => ['en', 'antes'].includes(claseLlegada(x)))).slice(0, 80);
         h += `<tr class="detalle"><td colspan="9"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px"><strong>Llegadas de ${esc(TEC[r.t].corto)} (primero tarde y sin marca)</strong>${btnRep('puntualidad', r.t, '', `Puntualidad ${f1(r.punt)}: ${r.tarde} tarde, ${r.sin} sin marca`)}</div><div class="tabla-env"><table><thead><tr><th>Fecha</th><th>OS</th><th>Franja</th><th>En camino</th><th>En domicilio</th><th>Resultado</th><th></th></tr></thead><tbody>${ords.map(x => {
-          const c = claseLlegada(x); const p = c === 'tarde' ? `<span class="pill mal">tarde ${hm(x.llegada) - hm(x.franja.split('-')[0])} min</span>` : c === 'sin' ? '<span class="pill alerta">sin marca</span>' : c === 'antes' ? '<span class="pill ok">antes</span>' : '<span class="pill ok">a la hora</span>';
+          const c = claseLlegada(x); const p = c === 'tarde' ? `<span class="pill mal">tarde ${hm(x.llegada) - hm(x.franja.split('-')[0])} min</span>` : c === 'sin' ? '<span class="pill alerta">sin marca</span>' : c === 'antes' ? '<span class="pill ok">antes</span>' : `<span class="pill ok">a tiempo${hm(x.llegada) > hm(x.franja.slice(0, 5)) ? ' (+' + (hm(x.llegada) - hm(x.franja.slice(0, 5))) + ' min)' : ''}</span>`;
           return `<tr><td class="num">${fechaCorta(x.fecha)}</td><td class="num">${esc(x.os)}</td><td class="num">${esc(x.franja)}</td><td class="num">${esc(x.enCamino || '—')}</td><td class="num">${esc(x.llegada || '—')}</td><td>${p}</td><td>${c === 'tarde' || c === 'sin' ? btnRep('puntualidad', r.t, `OS ${x.os}`, `${x.fecha} franja ${x.franja}, llegada ${x.llegada || 'sin marca'}`) : ''}</td></tr>`;
         }).join('')}</tbody></table></div></td></tr>`;
       }
@@ -1123,9 +1125,9 @@ document.addEventListener('click', async e => {
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr.fila-tec')) { e.preventDefault(); e.target.click(); } });
 
 // Metas y respaldo
-function pintarMetas() { $('#m-conv').value = METAS.conv; $('#m-inf').value = METAS.inf; $('#m-punt').value = METAS.punt; }
+function pintarMetas() { $('#m-conv').value = METAS.conv; $('#m-inf').value = METAS.inf; $('#m-punt').value = METAS.punt; $('#m-tol').value = METAS.tol; $('#tol-txt').textContent = METAS.tol; }
 $('#btn-metas').addEventListener('click', async () => {
-  const m = { conv: +$('#m-conv').value || METAS_DEF.conv, inf: +$('#m-inf').value || METAS_DEF.inf, punt: +$('#m-punt').value || METAS_DEF.punt };
+  const m = { conv: +$('#m-conv').value || METAS_DEF.conv, inf: +$('#m-inf').value || METAS_DEF.inf, punt: +$('#m-punt').value || METAS_DEF.punt, tol: Math.max(0, Math.round(+$('#m-tol').value)) };
   await api('PUT', '/api/metas', m); METAS = { ...METAS_DEF, ...m }; render(); $('#metas-estado').textContent = 'Metas guardadas en este equipo.';
 });
 $('#btn-compartir-ranking').addEventListener('click', async e => {
@@ -1152,6 +1154,8 @@ $('#form-login').addEventListener('submit', async e => {
 
 // ───────────────────────── Arranque ─────────────────────────
 armarEvid('rep'); armarEvid('insp');
+try { const mt = JSON.parse(lsGet(LS.metas) || 'null'); if (mt) METAS = { ...METAS_DEF, ...mt }; } catch (_) { }
+pintarMetas();
 irA();
 const dniGuardado = lsGet(LS.dni);
 if (!dniGuardado) { $('#login').hidden = false; }
