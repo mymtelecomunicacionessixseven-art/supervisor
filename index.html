@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Supervisión de campo MYM</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0a6a86">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-apple-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Supervisor MYM">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Plan: tablero de operaciones de campo. Franja superior con filtros, pestañas por indicador,
+   tablas por técnico con semáforo y un formulario único de hallazgo con evidencias. */
+:root {
+  --fondo: #f3f5f6;
+  --papel: #ffffff;
+  --tinta: #15232d;
+  --suave: #5c6b75;
+  --linea: #dbe2e6;
+  --acento: #0a6a86;
+  --acento-tinte: #e2f0f4;
+  --ok: #1d7a46; --ok-t: #e3f3e9;
+  --alerta: #9a6200; --alerta-t: #fbf0d9;
+  --mal: #b4232a; --mal-t: #fbe4e3;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --cuerpo: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fondo: #0f171c; --papel: #16222a; --tinta: #e6edf0; --suave: #93a3ad; --linea: #2a3a44;
+    --acento: #4cb6d4; --acento-tinte: #173341;
+    --ok: #5cc98a; --ok-t: #143323; --alerta: #e6b04f; --alerta-t: #3a2c10; --mal: #f0787c; --mal-t: #3d1a1c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --fondo: #0f171c; --papel: #16222a; --tinta: #e6edf0; --suave: #93a3ad; --linea: #2a3a44;
+  --acento: #4cb6d4; --acento-tinte: #173341;
+  --ok: #5cc98a; --ok-t: #143323; --alerta: #e6b04f; --alerta-t: #3a2c10; --mal: #f0787c; --mal-t: #3d1a1c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--fondo); color: var(--tinta); font: 16px/1.45 var(--cuerpo); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+h1 { font-size: 1.35rem; font-weight: 800; }
+h2 { font-size: 1.2rem; font-weight: 700; }
+h3 { font-size: 1rem; font-weight: 700; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--acento); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+header.barra { background: var(--papel); border-bottom: 1px solid var(--linea); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 5; }
+.marca { display: flex; flex-direction: column; gap: 2px; }
+.marca small { color: var(--suave); font-size: .82rem; }
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filtros label { font-size: .8rem; color: var(--suave); display: flex; flex-direction: column; gap: 2px; }
+select, input[type=text], input[type=date], input[type=number], textarea { background: var(--papel); border: 1px solid var(--linea); border-radius: 6px; padding: 7px 9px; min-width: 0; }
+textarea { width: 100%; min-height: 80px; resize: vertical; }
+
+nav.pestanas { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; background: var(--papel); border-bottom: 1px solid var(--linea); }
+nav.pestanas a { padding: 11px 12px 9px; text-decoration: none; color: var(--suave); border-bottom: 3px solid transparent; white-space: nowrap; font-weight: 600; }
+nav.pestanas a[aria-current="page"] { color: var(--tinta); border-color: var(--acento); }
+
+main { max-width: 1180px; margin: 0 auto; padding: 18px 16px 60px; display: flex; flex-direction: column; gap: 18px; }
+section.vista { display: none; flex-direction: column; gap: 16px; }
+section.vista.activa { display: flex; }
+.intro { color: var(--suave); max-width: 72ch; margin: 4px 0 0; }
+
+.fichas { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.ficha { background: var(--papel); border: 1px solid var(--linea); border-left: 5px solid var(--linea); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: inherit; }
+.ficha.ok { border-left-color: var(--ok); } .ficha.alerta { border-left-color: var(--alerta); } .ficha.mal { border-left-color: var(--mal); }
+.ficha .t { font-size: .85rem; color: var(--suave); font-weight: 600; }
+.ficha .v { font: 800 2rem/1.05 var(--display); font-variant-numeric: tabular-nums; }
+.ficha .d { font-size: .85rem; color: var(--suave); }
+
+.panel { background: var(--papel); border: 1px solid var(--linea); border-radius: 8px; }
+.panel > header { padding: 12px 14px; border-bottom: 1px solid var(--linea); display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.panel > .cuerpo { padding: 12px 14px; }
+.tabla-env { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+th { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; color: var(--suave); font-weight: 700; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+tr.fila-tec { cursor: pointer; }
+tr.fila-tec:hover td { background: var(--acento-tinte); }
+tr.detalle > td { background: var(--fondo); padding: 10px 12px 14px; }
+
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 700; white-space: nowrap; }
+.pill.ok { background: var(--ok-t); color: var(--ok); }
+.pill.alerta { background: var(--alerta-t); color: var(--alerta); }
+.pill.mal { background: var(--mal-t); color: var(--mal); }
+.pill.neutro { background: var(--acento-tinte); color: var(--acento); }
+.barra-h { position: relative; height: 8px; background: var(--linea); border-radius: 4px; min-width: 70px; }
+.barra-h > span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--acento); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: .78rem; background: var(--fondo); border: 1px solid var(--linea); border-radius: 4px; padding: 0 6px; }
+
+.btn { border: 1px solid var(--linea); background: var(--papel); border-radius: 6px; padding: 7px 12px; cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--acento); }
+.btn.prim { background: var(--acento); border-color: var(--acento); color: #fff; }
+:root[data-theme="dark"] .btn.prim { color: #06212b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.prim { color: #06212b; } }
+.btn.mini { padding: 3px 8px; font-size: .82rem; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.aviso { padding: 10px 12px; border-radius: 6px; background: var(--alerta-t); color: var(--tinta); border: 1px solid var(--alerta); font-size: .92rem; }
+.aviso.info { background: var(--acento-tinte); border-color: var(--acento); }
+.vacio { color: var(--suave); padding: 16px; text-align: center; }
+
+/* Formularios */
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.form .campo { display: flex; flex-direction: column; gap: 4px; }
+.form .campo.ancho { grid-column: 1 / -1; }
+.form .campo > span { font-size: .85rem; font-weight: 600; color: var(--suave); }
+.check-tabla td { padding: 5px 8px; }
+.opciones { display: inline-flex; border: 1px solid var(--linea); border-radius: 6px; overflow: hidden; }
+.opciones label { padding: 3px 9px; font-size: .82rem; cursor: pointer; border-right: 1px solid var(--linea); white-space: nowrap; }
+.opciones label:last-child { border-right: 0; }
+.opciones input { position: absolute; opacity: 0; pointer-events: none; }
+.opciones label:has(input:checked) { background: var(--acento); color: #fff; }
+.opciones label:has(input:checked).o-falta, .opciones label:has(input:checked).o-malo { background: var(--mal); }
+.opciones label:has(input:checked).o-regular { background: var(--alerta); }
+.opciones label:has(input:checked).o-ok { background: var(--ok); }
+.opciones label:has(input:focus-visible) { outline: 3px solid var(--acento); }
+
+/* Evidencias */
+.evid { display: flex; flex-direction: column; gap: 8px; }
+.evid-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.evid-botones label.btn { display: inline-flex; align-items: center; }
+.evid-botones input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.galeria figure { margin: 0; position: relative; border: 1px solid var(--linea); border-radius: 6px; overflow: hidden; background: var(--fondo); aspect-ratio: 1; }
+.galeria img, .galeria video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.galeria figcaption { position: absolute; inset: auto 0 0 0; font-size: .7rem; background: rgba(0,0,0,.55); color: #fff; padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.galeria .quitar { position: absolute; top: 3px; right: 3px; border: 0; border-radius: 50%; width: 22px; height: 22px; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; line-height: 1; }
+.galeria a { display: block; width: 100%; height: 100%; }
+
+/* Diálogo */
+dialog { border: 1px solid var(--linea); border-radius: 10px; padding: 0; width: min(760px, calc(100vw - 24px)); background: var(--papel); color: var(--tinta); }
+dialog::backdrop { background: rgba(10, 20, 26, .55); }
+dialog > form { display: flex; flex-direction: column; max-height: calc(100vh - 40px); }
+dialog .cab { padding: 14px 16px; border-bottom: 1px solid var(--linea); display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+dialog .cont { padding: 14px 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+dialog .pie { padding: 12px 16px; border-top: 1px solid var(--linea); display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; align-items: center; }
+dialog .pie .estado-envio { margin-right: auto; font-size: .88rem; color: var(--suave); }
+
+.tarjetas { display: flex; flex-direction: column; gap: 10px; }
+.tarjeta { background: var(--papel); border: 1px solid var(--linea); border-left: 5px solid var(--acento); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.tarjeta.cerrado { border-left-color: var(--ok); }
+.tarjeta .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: .85rem; color: var(--suave); align-items: center; }
+.tarjeta p { margin: 0; white-space: pre-wrap; }
+.tarjeta .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Entrada */
+#login { position: fixed; inset: 0; z-index: 20; background: var(--fondo); display: grid; place-items: center; padding: 16px; overflow: auto; }
+#login[hidden] { display: none; }
+#login .caja { width: min(400px, 100%); background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; padding: 22px 20px; display: flex; flex-direction: column; gap: 12px; }
+#login img { width: 120px; height: auto; }
+#login label { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; font-weight: 600; color: var(--suave); }
+#login input { font-size: 16px; padding: 10px; }
+#l-msg { min-height: 1.3em; color: var(--mal); font-size: .9rem; }
+.sesion { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: .82rem; color: var(--suave); }
+.marca-fila { display: flex; gap: 10px; align-items: center; }
+.marca-fila img { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; }
+header.barra { padding-top: max(12px, env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
+
+@media (max-width: 700px) {
+  header.barra { position: static; }
+  nav.pestanas { position: sticky; top: 0; z-index: 5; }
+  .filtros select { max-width: 46vw; }
+  dialog { width: 100vw; max-width: 100vw; height: 100%; max-height: 100%; margin: 0; border-radius: 0; }
+  dialog > form { max-height: 100%; height: 100%; }
+  dialog .cont { flex: 1; }
+  .ficha .v { font-size: 1.7rem; }
+  th, td { padding: 7px 6px; }
+  .ocultar-movil { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<header class="barra">
+  <div class="marca-fila">
+    <img src="logo.png" alt="MYM Telecomunicaciones">
+    <div class="marca">
+      <h1>Supervisión de campo</h1>
+      <small id="origen">Datos de la Torre</small>
+      <span class="sesion"><span id="sesion-txt"></span><button class="btn mini" type="button" id="btn-actualizar">Actualizar</button><button class="btn mini" type="button" id="btn-instalar" hidden>Instalar app</button><button class="btn mini" type="button" id="btn-salir" hidden>Salir</button></span>
+    </div>
+  </div>
+  <div class="filtros">
+    <label for="f-periodo">Periodo<select id="f-periodo"></select></label>
+    <label for="f-tecnico">Técnico<select id="f-tecnico"><option value="">Todos</option></select></label>
+  </div>
+</header>
+<nav class="pestanas" aria-label="Secciones">
+  <a href="#resumen">Resumen</a>
+  <a href="#convertibilidad">Convertibilidad</a>
+  <a href="#averias">Averías de infancia</a>
+  <a href="#puntualidad">Puntualidad</a>
+  <a href="#unidades">Unidades y herramientas</a>
+  <a href="#reportes">Reportes de campo <span class="pill neutro" id="cuenta-rep">0</span></a>
+</nav>
+
+<main>
+  <div id="aviso-db" class="aviso" hidden></div>
+
+  <!-- RESUMEN -->
+  <section class="vista" id="v-resumen">
+    <div>
+      <h2>Resumen del periodo</h2>
+      <p class="intro">Los tres indicadores de la Torre y las revisiones de unidades del supervisor. Abajo, los técnicos que conviene visitar primero.</p>
+    </div>
+    <div class="fichas" id="fichas-resumen"></div>
+    <div class="panel">
+      <header><h3>Técnicos a priorizar en campo</h3><span class="pill neutro" id="metas-txt"></span></header>
+      <div class="tabla-env"><table id="t-prioridad"></table></div>
+    </div>
+  </section>
+
+  <!-- CONVERTIBILIDAD -->
+  <section class="vista" id="v-convertibilidad">
+    <div>
+      <h2>Convertibilidad</h2>
+      <p class="intro">Instalaciones completadas sobre las cerradas (completas + reportadas). Las reportadas son las que el técnico cerró con un código de "no se puede instalar". Ordenado por cantidad de reportadas: toca una fila para ver sus órdenes y registrar lo que encontraste en campo.</p>
+    </div>
+    <div class="fichas" id="fichas-conv"></div>
+    <div class="panel">
+      <header><h3>Reportadas por motivo</h3></header>
+      <div class="cuerpo"><div class="chips" id="motivos-conv"></div></div>
+    </div>
+    <div class="panel">
+      <header><h3>Por técnico</h3></header>
+      <div class="tabla-env"><table id="t-conv"></table></div>
+    </div>
+  </section>
+
+  <!-- AVERÍAS -->
+  <section class="vista" id="v-averias">
+    <div>
+      <h2>Averías de infancia y reiteradas</h2>
+      <p class="intro">Una avería dentro de los 30 días corridos siguientes a la instalación es de infancia, aunque caiga en otro mes (instalado el 25/10 y averiado el 10/11 cuenta), y se carga al técnico que instaló; después de 30 días es avería regular. El porcentaje se cuenta en el mes de la instalación. Reiterada: el mismo abonado con dos o más averías en 30 días. Tope: <strong id="tope-inf">3 %</strong> de lo instalado.</p>
+    </div>
+    <div class="fichas" id="fichas-aver"></div>
+    <div class="panel">
+      <header><h3>Por técnico instalador</h3></header>
+      <div class="tabla-env"><table id="t-aver"></table></div>
+    </div>
+    <div class="panel">
+      <header><h3>Averías del periodo</h3><div class="filtros"><label for="f-aver-clase">Mostrar<select id="f-aver-clase"><option value="inf">Infancia y reiteradas</option><option value="">Todas</option><option value="reg">Solo regulares</option></select></label></div></header>
+      <div class="tabla-env"><table id="t-aver-lista"></table></div>
+    </div>
+  </section>
+
+  <!-- PUNTUALIDAD -->
+  <section class="vista" id="v-puntualidad">
+    <div>
+      <h2>Puntualidad</h2>
+      <p class="intro">La hora de llegada es la marca <strong>EN DOMICILIO</strong> del técnico en la Torre, comparada con la franja programada. Puntual: llega antes del fin de la franja. Las órdenes sin marca EN DOMICILIO se cuentan aparte, porque sin marca no hay hora de llegada.</p>
+    </div>
+    <div class="fichas" id="fichas-punt"></div>
+    <div class="panel">
+      <header><h3>Por técnico</h3></header>
+      <div class="tabla-env"><table id="t-punt"></table></div>
+    </div>
+  </section>
+
+  <!-- UNIDADES -->
+  <section class="vista" id="v-unidades">
+    <div>
+      <h2>Revisión de unidades vehiculares y herramientas</h2>
+      <p class="intro">Checklist del formato GA-34 (acta de entrega de herramientas e implementos). Marca el estado de cada parte, implemento y herramienta, y adjunta las fotos o videos de lo observado.</p>
+    </div>
+    <div class="fichas" id="fichas-unid"></div>
+    <div class="panel">
+      <header><h3>Unidades asignadas</h3><button class="btn prim" type="button" id="btn-nueva-insp">Nueva revisión</button></header>
+      <div class="tabla-env"><table id="t-unidades"></table></div>
+    </div>
+    <div class="panel" id="panel-insp" hidden>
+      <header><h3 id="insp-titulo">Nueva revisión</h3><button class="btn" type="button" id="btn-cerrar-insp">Cerrar</button></header>
+      <div class="cuerpo">
+        <form id="form-insp" class="form-insp">
+          <div class="form">
+            <label class="campo"><span>Técnico</span><select id="i-tecnico" required></select></label>
+            <label class="campo"><span>Fecha de revisión</span><input type="date" id="i-fecha" required></label>
+            <label class="campo"><span>Tipo de unidad</span><select id="i-tipo"><option value="van">Van Changan</option><option value="moto">Motocicleta</option><option value="otro">Otro vehículo</option><option value="ninguna">Sin unidad (solo herramientas)</option></select></label>
+            <label class="campo"><span>Placa</span><input type="text" id="i-placa" autocomplete="off"></label>
+            <label class="campo"><span>Kilometraje</span><input type="number" id="i-km" min="0" inputmode="numeric"></label>
+            <label class="campo"><span>Combustible</span><select id="i-comb"><option value="">—</option><option>Lleno</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Reserva</option></select></label>
+            <label class="campo"><span>Lugar de la revisión</span><input type="text" id="i-lugar" placeholder="Base, OS en curso, distrito…"></label>
+          </div>
+          <div id="i-docs"></div>
+          <div id="i-listas"></div>
+          <div class="form" style="margin-top:12px">
+            <label class="campo ancho"><span>Observaciones y compromisos</span><textarea id="i-obs" placeholder="Qué se encontró, qué se acordó con el técnico y para cuándo"></textarea></label>
+          </div>
+          <div class="evid" style="margin-top:12px" data-evid="insp"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;align-items:center;flex-wrap:wrap">
+            <span class="estado-envio" id="insp-estado"></span>
+            <button class="btn prim" type="submit" id="btn-guardar-insp">Guardar revisión</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="panel">
+      <header><h3>Revisiones registradas</h3></header>
+      <div class="cuerpo"><div class="tarjetas" id="lista-insp"></div></div>
+    </div>
+  </section>
+
+  <!-- REPORTES -->
+  <section class="vista" id="v-reportes">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <h2>Reportes de campo</h2>
+        <p class="intro">Todo lo que el supervisor registró desde los indicadores, con sus evidencias. Los ve cualquiera con acceso al aplicativo.</p>
+      </div>
+      <div class="filtros">
+        <label for="f-rep-tipo">Tipo<select id="f-rep-tipo"><option value="">Todos</option></select></label>
+        <label for="f-rep-estado">Estado<select id="f-rep-estado"><option value="">Todos</option><option value="abierto">Abiertos</option><option value="cerrado">Cerrados</option></select></label>
+        <button class="btn prim" type="button" id="btn-rep-nuevo">Nuevo reporte</button>
+      </div>
+    </div>
+    <div class="tarjetas" id="lista-rep"></div>
+  </section>
+
+  <details class="panel" id="ajustes">
+    <summary style="padding:12px 14px;cursor:pointer;font-weight:700">Metas y datos</summary>
+    <div class="cuerpo" style="display:flex;flex-direction:column;gap:10px">
+      <div class="form">
+        <label class="campo"><span>Convertibilidad mínima (%)</span><input type="number" id="m-conv" min="0" max="100" step="1"></label>
+        <label class="campo"><span>Averías de infancia máximas (% de lo instalado)</span><input type="number" id="m-inf" min="0" max="100" step="0.1"></label>
+        <label class="campo"><span>Puntualidad mínima (%)</span><input type="number" id="m-punt" min="0" max="100" step="1"></label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" id="btn-metas">Guardar metas</button><span id="metas-estado" class="estado-envio">Solo el administrador cambia las metas.</span></div>
+      <p class="intro" id="txt-fuente"></p>
+      <div id="zona-admin" hidden style="display:flex;flex-direction:column;gap:6px">
+        <strong>Cargar datos de la Torre</strong>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="btn" for="a-torre">Elegir datos_supervisor.json<input id="a-torre" type="file" accept=".json,application/json" style="position:absolute;width:1px;height:1px;opacity:0"></label><span id="torre-estado" class="estado-envio"></span></div>
+      </div>
+      <div class="form">
+        <label class="campo ancho"><span>Servidor</span><input type="text" id="m-srv" autocomplete="off" inputmode="url"></label>
+      </div>
+      <div><button class="btn" type="button" id="m-srv-guardar">Cambiar servidor</button></div>
+    </div>
+  </details>
+</main>
+
+<!-- Diálogo de reporte -->
+<dialog id="dlg-rep">
+  <form method="dialog" id="form-rep">
+    <div class="cab"><h2 id="rep-titulo">Nuevo reporte de campo</h2><button class="btn mini" value="cancelar" type="button" id="rep-cerrar">Cerrar</button></div>
+    <div class="cont">
+      <div class="aviso info" id="rep-contexto" hidden></div>
+      <div class="form">
+        <label class="campo"><span>Tipo</span><select id="r-tipo" required></select></label>
+        <label class="campo"><span>Técnico</span><select id="r-tecnico" required></select></label>
+        <label class="campo"><span>Fecha de la visita</span><input type="date" id="r-fecha" required></label>
+        <label class="campo"><span>OS / abonado</span><input type="text" id="r-ref" autocomplete="off" placeholder="Opcional"></label>
+        <label class="campo ancho"><span>Hallazgo</span><select id="r-hallazgo"></select></label>
+        <label class="campo ancho"><span>Detalle de lo observado</span><textarea id="r-detalle" required placeholder="Qué viste en campo"></textarea></label>
+        <label class="campo ancho"><span>Acción o compromiso</span><textarea id="r-accion" placeholder="Qué se acordó, plazo, responsable"></textarea></label>
+        <label class="campo"><span>Estado</span><select id="r-estado"><option value="abierto">Abierto (seguimiento)</option><option value="cerrado">Cerrado</option></select></label>
+      </div>
+      <div class="evid" data-evid="rep"></div>
+    </div>
+    <div class="pie"><span class="estado-envio" id="rep-estado"></span><button class="btn" type="button" id="rep-cancelar">Cancelar</button><button class="btn prim" type="submit" id="rep-guardar">Guardar reporte</button></div>
+  </form>
+</dialog>
+
+<!-- Entrada -->
+<div id="login" hidden>
+  <form class="caja" id="form-login">
+    <img src="logo.png" alt="MYM Telecomunicaciones">
+    <h2>Supervisión de campo</h2>
+    <p class="intro" style="margin:0">Entra con el usuario y clave que te dio la oficina.</p>
+    <label for="l-usuario">Usuario<input id="l-usuario" autocomplete="username" autocapitalize="none" required></label>
+    <label for="l-clave">Clave<input id="l-clave" type="password" autocomplete="current-password" required></label>
+    <details><summary style="font-size:.85rem;color:var(--suave);cursor:pointer">Servidor</summary><label for="l-srv" style="margin-top:6px">Dirección<input id="l-srv" inputmode="url" autocomplete="off"></label></details>
+    <div id="l-msg" role="status"></div>
+    <button class="btn prim" type="submit" id="l-entrar">Entrar</button>
+  </form>
+</div>
+<script>
+'use strict';
+// ───────────────────────── Datos fijos ─────────────────────────
+// Servidor del supervisor (datos de la Torre, reportes, revisiones y evidencias). Se puede cambiar en "Metas y datos".
+const SRV_DEF = 'https://supervisor.137-184-20-246.sslip.io';
+const LS = { srv: 'mym.sup.servidor', token: 'mym.sup.token', cache: 'mym.sup.cache' };
+const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (_) { } };
+let D = null;
+const TIPOS = {
+  convertibilidad: { nombre: 'Convertibilidad', hallazgos: ['Motivo de reporte confirmado en campo', 'Motivo incorrecto: sí era instalable', 'Reportó sin ir al domicilio', 'Faltó gestión con el cliente (llamada, espera)', 'Falta de material o herramienta', 'Problema de red / factibilidad (NAP, potencia)', 'Otro'] },
+  averias: { nombre: 'Avería de infancia / reiterada', hallazgos: ['Mala calidad de instalación (conectores, empalmes)', 'Recorrido o fijación del cableado deficiente', 'Potencia óptica fuera de rango', 'Equipo (ONT/router) defectuoso', 'Causa externa o del cliente', 'Problema de planta externa', 'Otro'] },
+  puntualidad: { nombre: 'Puntualidad', hallazgos: ['Llegada tarde a la franja', 'No marcó EN DOMICILIO al llegar', 'Marcas de estado juntas (no reales)', 'Ruta mal planificada', 'Retraso por orden anterior', 'Otro'] },
+  unidades: { nombre: 'Unidad y herramientas', hallazgos: ['Unidad en mal estado', 'Falta herramienta o implemento', 'Herramienta dañada', 'Documentos vencidos (SOAT / revisión)', 'Uso indebido de la unidad', 'Otro'] },
+  otro: { nombre: 'Otro', hallazgos: ['Uniforme / EPP', 'Trato al cliente', 'Seguridad en altura', 'Otro'] },
+};
+// Formato GA-34 (acta de entrega de herramientas e implementos)
+const SECCIONES = [
+  { id: 'kit', titulo: 'Kit de fibra', items: ['PELADOR DE CABLE DE F.O.', 'TIJERAS KEVLAR', 'PELADOR DE CABLE DROP', 'HERRAMIENTA DE CORTE DE PRECISION', 'POWER METER', 'VERIFICADOR DE F.O. (LAPIZ OPTICO)', 'ENVASE DE ALCOHOL ISOPROPILICO', 'ONE CLEANER', 'MALETIN PORTA KIT'] },
+  { id: 'herr', titulo: 'Herramientas', items: ['ALICATE UNIVERSAL', 'ALICATE DE CORTE', 'ALICATE DE PUNTA', 'DETECTOR DE VOLTAJE', 'TESTEADOR DE CABLE RED', 'CRIMPADORA CABLE DE RED RJ45', 'PREPARADORA DE CABLE COAXIAL', 'CADENA', 'CANDADO', 'DESTORNILLADOR PUNTA PLANA', 'DESTORNILLADOR PUNTA ESTRELLA', 'MARTILLO', 'CARTUCHERA – PORTAHERRAMIENTAS', 'CAJA DE HERRAMIENTAS', 'TALADRO PERCUTOR', 'SET BROCAS', 'BROCA PASAMURO', 'EXTENSION 10MT', 'WINCHA PASACABLE 20mts', 'BANDERIN', 'PORTABOBINA', 'CONOS DE SEGURIDAD', 'BARRAS RETRACTIL', 'ESCALERA TELESCOPICA DE 28 PASOS', 'ESCALERA TIJERA DE 7 PASOS'] },
+  { id: 'epp', titulo: 'Uniforme y EPP', items: ['CHALECO', 'POLO', 'PANTALON', 'BOTAS', 'CASCO', 'BARBIQUEJO', 'CORTAVIENTO', 'GUANTES BADANA', 'GUANTES POLIURETANO', 'GUANTES DIELECTRICO', 'LENTES DE SEGURIDAD', 'LANYARD', 'FOTOCHECK', 'ARNÉS', 'LINEA DE VIDA', 'LINEA DE ANCLAJE', 'LINEA DE POSICIONAMIENTO'] },
+];
+const IMPLEMENTOS = {
+  van: ['EXTINTOR 1KG', 'BOTIQUIN', 'TRIANGULOS DE SEGURIDAD', 'LLAVE DE RUEDAS', 'GATA HIDRAULICA/MECANICA', 'LLANTA DE REPUESTO', 'VALVULA ACOPLE DE GLP', 'REJAS DE VEHICULO'],
+  moto: ['CASCO PARA MOTO CERTIFICADO', 'CHALECO REFLECTIVO CON PLACA', 'CAJUELA PARA MATERIALES (CON LLAVE)', 'BAUL / CAJA PORTAHERRAMIENTAS', 'CANDADO O CADENA ANTIRROBO', 'KIT DE HERRAMIENTAS DE LA MOTO', 'IMPERMEABLE', 'RODILLERAS Y CODERAS'],
+};
+IMPLEMENTOS.otro = ['EXTINTOR', 'BOTIQUIN', 'TRIANGULOS DE SEGURIDAD', 'LLAVE DE RUEDAS', 'GATA', 'LLANTA DE REPUESTO'];
+const PARTES = {
+  van: ['Carrocería y pintura', 'Parabrisas y ventanas', 'Luces delanteras y posteriores', 'Direccionales y luces de freno', 'Espejos', 'Llantas', 'Frenos', 'Plumillas', 'Claxon', 'Asientos y tapiz', 'Cinturones de seguridad', 'Tablero e indicadores', 'Batería', 'Nivel de aceite y refrigerante', 'Sistema GLP', 'Limpieza interior'],
+  moto: ['Carrocería, tanque y pintura', 'Luces y faro', 'Direccionales y luz de freno', 'Espejos', 'Llantas', 'Frenos', 'Claxon', 'Asiento', 'Tablero e indicadores', 'Cadena y transmisión', 'Batería', 'Nivel de aceite', 'Caballete / pata lateral', 'Cajuela (soporte, cerradura y tapa)'],
+};
+PARTES.otro = PARTES.van.filter(p => p !== 'Sistema GLP');
+const DOCS = ['Licencia de conducir', 'SOAT vigente', 'Revisión técnica vigente', 'Tarjeta de propiedad'];
+const METAS_DEF = { conv: 85, inf: 3, punt: 90 };
+const MAX_VIDEO = 20 * 1024 * 1024;
+
+// ───────────────────────── Utilidades ─────────────────────────
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pct = (n, t) => t ? 100 * n / t : null;
+const f1 = v => v == null ? '—' : (Math.round(v * 10) / 10).toLocaleString('es-PE', { maximumFractionDigits: 1 }) + ' %';
+const hoy = () => { const d = new Date(Date.now() - 5 * 3600e3); return d.toISOString().slice(0, 10); };
+const hm = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+const fechaCorta = f => f ? f.slice(8, 10) + '/' + f.slice(5, 7) : '';
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function nombreCorto(n) {
+  if (!n) return '(sin técnico)';
+  let ap = '', no = n;
+  if (n.includes(',')) { [ap, no] = n.split(',').map(s => s.trim()); }
+  const cap = s => s.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
+  const nom = no.split(/\s+/)[0] || '';
+  if (ap) { const w = ap.split(/\s+/); let k = 0; while (k < w.length - 1 && /^(de|del|la|las|los|san)$/i.test(w[k])) k++; return cap(nom + ' ' + w.slice(0, k + 1).join(' ')); }
+  const p = no.split(/\s+/);
+  return cap(p.length >= 3 ? p[0] + ' ' + p[p.length - 2] : no);
+}
+const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+function semaforo(valor, meta, mayorEsMejor) {
+  if (valor == null) return 'neutro';
+  if (mayorEsMejor) return valor >= meta ? 'ok' : valor >= meta - 10 ? 'alerta' : 'mal';
+  return valor <= meta ? 'ok' : valor <= meta * 1.5 ? 'alerta' : 'mal';
+}
+
+// ───────────────────────── Modelo ─────────────────────────
+let TEC = [], INST = [], AVER = [], UNID = [], PERSONAS = [];
+function cargarModelo(datos) {
+D = datos;
+TEC = D.tecnicos.map((n, i) => ({ i, nombre: n, corto: nombreCorto(n) }));
+INST = D.inst.map(r => ({ fecha: r[0], os: r[1], abonado: r[2], t: r[3], estado: r[4], motivo: r[5], detalle: r[6], franja: r[7], llegada: r[8], enCamino: r[9], distrito: r[10], tipo: r[11], esInst: /INSTAL/i.test(r[11] || '') }));
+AVER = D.aver.map(r => ({ fecha: r[0], os: r[1], abonado: r[2], tAtiende: r[3], estado: r[4], fechaInst: r[5], osInst: r[6], t: r[7], dias: r[8], detalle: r[9], distrito: r[10], tipo: r[11] || '' }));
+// Reiteradas: mismo abonado con otra avería a 30 días o menos
+const porAb = {};
+AVER.forEach(a => (porAb[a.abonado] ||= []).push(a));
+AVER.forEach(a => { a.reiterada = !!a.abonado && porAb[a.abonado].some(b => b !== a && Math.abs(Date.parse(b.fecha) - Date.parse(a.fecha)) <= 30 * 864e5); a.infancia = a.dias >= 0 && a.dias <= 30; });
+// Unidades (ERP) enlazadas con técnicos de la Torre por coincidencia de nombre
+UNID = (D.unidades || []).map(u => ({ ...u }));
+UNID.forEach(u => {
+  const w = norm(u.nombre); let mejor = -1, puntos = 1;
+  TEC.forEach(t => { const tw = norm(t.nombre); const p = w.filter(x => tw.includes(x)).length; if (p > puntos) { puntos = p; mejor = t.i; } });
+  u.t = mejor;
+});
+// Lista de personas para los formularios: técnicos de la Torre + los del ERP que no están en la Torre
+PERSONAS = TEC.map(t => ({ clave: 't' + t.i, nombre: t.corto, t: t.i }));
+UNID.filter(u => u.t < 0).forEach((u, k) => PERSONAS.push({ clave: 'e' + k + ':' + u.nombre, nombre: nombreCorto(u.nombre), t: -1 }));
+PERSONAS.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+periodos();
+}
+const nombrePersona = clave => (PERSONAS.find(p => p.clave === clave) || {}).nombre || clave || '—';
+const unidadDe = clave => { const p = PERSONAS.find(x => x.clave === clave); if (!p) return null; return p.t >= 0 ? UNID.find(u => u.t === p.t) : UNID.find(u => clave.endsWith(':' + u.nombre)); };
+
+let METAS = { ...METAS_DEF };
+const estado = { periodo: null, tecnico: '', abiertoConv: null, abiertoPunt: null, abiertoAver: null, reportes: [], insp: [], sesion: null, usuario: '', rol: '', puedeEscribir: false, puedeBorrar: false };
+
+// Periodos: meses dentro del rango + todo
+function periodos() {
+  const sel = $('#f-periodo'); const meses = [...new Set(INST.map(x => x.fecha.slice(0, 7)))].sort().reverse();
+  sel.innerHTML = meses.map(m => `<option value="${m}">${MESES[+m.slice(5) - 1]} ${m.slice(0, 4)}</option>`).join('') + `<option value="">Todo (${fechaCorta(D.desde)} al ${fechaCorta(D.hasta)})</option>`;
+  if (estado.periodo === null || ![...sel.options].some(o => o.value === estado.periodo)) estado.periodo = meses[0] || '';
+  sel.value = estado.periodo;
+  const st = $('#f-tecnico'); st.innerHTML = '<option value="">Todos</option>' + [...TEC].sort((a, b) => a.corto.localeCompare(b.corto, 'es')).map(t => `<option value="${t.i}">${esc(t.corto)}</option>`).join('');
+  st.value = estado.tecnico;
+  const g = new Date(D.generado);
+  $('#origen').textContent = `Torre MyM · datos al ${g.toLocaleDateString('es-PE')} ${g.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`;
+  $('#txt-fuente').textContent = `Datos de la Torre del ${D.desde} al ${D.hasta} (instalaciones desde ${D.desdeInst} para enlazar averías). Unidades y placas del ERP.${D.cargadoEl ? ` Cargados al servidor el ${new Date(D.cargadoEl).toLocaleString('es-PE')} por ${D.cargadoPor}.` : ''} Los reportes y evidencias se conservan al actualizar.`;
+}
+const enPeriodo = f => !estado.periodo || f.startsWith(estado.periodo);
+const deTec = t => estado.tecnico === '' || String(t) === estado.tecnico;
+
+// ───────────────────────── Cálculos ─────────────────────────
+function calcConv() {
+  const por = {}; const motivos = {};
+  INST.filter(x => x.esInst && enPeriodo(x.fecha) && deTec(x.t) && (x.estado === 'COMPLETO' || x.estado === 'REPORTADO')).forEach(x => {
+    const r = por[x.t] ||= { t: x.t, c: 0, r: 0, motivos: {}, ordenes: [] };
+    if (x.estado === 'COMPLETO') r.c++; else { r.r++; r.motivos[x.motivo] = (r.motivos[x.motivo] || 0) + 1; motivos[x.motivo] = (motivos[x.motivo] || 0) + 1; r.ordenes.push(x); }
+  });
+  const filas = Object.values(por).map(r => ({ ...r, conv: pct(r.c, r.c + r.r) })).sort((a, b) => b.r - a.r || a.conv - b.conv);
+  const C = filas.reduce((s, r) => s + r.c, 0), R = filas.reduce((s, r) => s + r.r, 0);
+  return { filas, C, R, conv: pct(C, C + R), motivos };
+}
+function calcAver() {
+  const por = {};
+  INST.filter(x => x.esInst && enPeriodo(x.fecha) && deTec(x.t) && x.estado === 'COMPLETO').forEach(x => { (por[x.t] ||= { t: x.t, inst: 0, inf: 0, reit: 0, lista: [] }).inst++; });
+  AVER.filter(a => a.infancia && a.fechaInst && enPeriodo(a.fechaInst) && deTec(a.t)).forEach(a => {
+    const r = por[a.t] ||= { t: a.t, inst: 0, inf: 0, reit: 0, lista: [] }; r.inf++; if (a.reiterada) r.reit++; r.lista.push(a);
+  });
+  const filas = Object.values(por).map(r => ({ ...r, tasa: pct(r.inf, r.inst) })).sort((a, b) => b.inf - a.inf || (b.tasa ?? 0) - (a.tasa ?? 0));
+  const I = filas.reduce((s, r) => s + r.inst, 0), F = filas.reduce((s, r) => s + r.inf, 0);
+  const delPeriodo = AVER.filter(a => enPeriodo(a.fecha) && (estado.tecnico === '' || String(a.t) === estado.tecnico || String(a.tAtiende) === estado.tecnico));
+  // Instalaciones de los últimos 30 días todavía pueden sumar averías de infancia
+  const abiertas = INST.filter(x => x.esInst && x.estado === 'COMPLETO' && enPeriodo(x.fecha) && deTec(x.t) && (Date.parse(D.hasta) - Date.parse(x.fecha)) / 864e5 < 30).length;
+  return { filas, I, F, tasa: pct(F, I), delPeriodo, reit: delPeriodo.filter(a => a.reiterada).length, regulares: delPeriodo.filter(a => !a.infancia).length, abiertas };
+}
+function claseLlegada(x) {
+  if (!x.franja) return null;
+  if (!x.llegada) return 'sin';
+  const [ini, fin] = x.franja.split('-').map(hm); const m = hm(x.llegada);
+  return m < ini ? 'antes' : m <= fin ? 'en' : 'tarde';
+}
+function calcPunt() {
+  const por = {};
+  INST.filter(x => enPeriodo(x.fecha) && deTec(x.t) && x.franja && x.t >= 0).forEach(x => {
+    const c = claseLlegada(x); const r = por[x.t] ||= { t: x.t, antes: 0, en: 0, tarde: 0, sin: 0, minTarde: 0, ordenes: [] };
+    r[c]++; if (c === 'tarde') r.minTarde += hm(x.llegada) - hm(x.franja.split('-')[1]); r.ordenes.push(x);
+  });
+  const filas = Object.values(por).map(r => { const m = r.antes + r.en + r.tarde; return { ...r, medidas: m, punt: pct(r.antes + r.en, m), promTarde: r.tarde ? Math.round(r.minTarde / r.tarde) : 0 }; })
+    .sort((a, b) => (a.punt ?? 101) - (b.punt ?? 101) || b.tarde - a.tarde);
+  const T = k => filas.reduce((s, r) => s + r[k], 0);
+  const m = T('medidas');
+  return { filas, medidas: m, punt: pct(T('antes') + T('en'), m), tarde: T('tarde'), sin: T('sin') };
+}
+
+// ───────────────────────── Render ─────────────────────────
+const ficha = (titulo, valor, detalle, clase, href) => `<a class="ficha ${clase}" ${href ? `href="${href}"` : ''}><span class="t">${esc(titulo)}</span><span class="v">${valor}</span><span class="d">${detalle}</span></a>`;
+const barra = (v, clase) => `<div class="barra-h" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, v ?? 0))}%;background:var(--${clase === 'ok' ? 'ok' : clase === 'alerta' ? 'alerta' : clase === 'mal' ? 'mal' : 'acento'})"></span></div>`;
+const nRep = (tipo, t) => estado.reportes.filter(r => r.tipo === tipo && r.tecnico === 't' + t).length;
+const btnRep = (tipo, t, ref, ctx) => `<button class="btn mini" type="button" data-rep="${tipo}" data-t="${t}" data-ref="${esc(ref || '')}" data-ctx="${esc(ctx || '')}">Registrar hallazgo</button>`;
+
+function render() {
+  if (!D) return;
+  const conv = calcConv(), aver = calcAver(), punt = calcPunt();
+  $('#metas-txt').textContent = `Metas: convertibilidad ≥ ${METAS.conv} % · infancia ≤ ${METAS.inf} % · puntualidad ≥ ${METAS.punt} %`;
+  $('#tope-inf').textContent = `${METAS.inf} %`;
+  const inspPeriodo = estado.insp.filter(i => enPeriodo(i.fecha || '') && (estado.tecnico === '' || i.tecnico === 't' + estado.tecnico));
+  const conf = inspPeriodo.length ? inspPeriodo.reduce((s, i) => s + (i.conformidad ?? 0), 0) / inspPeriodo.length : null;
+
+  // Resumen
+  const sc = semaforo(conv.conv, METAS.conv, true), sa = semaforo(aver.tasa, METAS.inf, false), sp = semaforo(punt.punt, METAS.punt, true);
+  $('#fichas-resumen').innerHTML =
+    ficha('Convertibilidad', f1(conv.conv), `${conv.C} completas · ${conv.R} reportadas`, sc, '#convertibilidad') +
+    ficha('Averías de infancia', f1(aver.tasa), `${aver.F} de ${aver.I} instaladas · tope ${METAS.inf} %`, sa, '#averias') +
+    ficha('Puntualidad', f1(punt.punt), `${punt.tarde} tarde de ${punt.medidas} · ${punt.sin} sin marca`, sp, '#puntualidad') +
+    ficha('Revisiones de unidad', String(inspPeriodo.length), conf == null ? 'sin revisiones en el periodo' : `conformidad media ${f1(conf)}`, conf == null ? '' : semaforo(conf, 90, true), '#unidades');
+  // Prioridad: puntaje por técnico
+  const pri = {};
+  const add = (t, k, v) => { (pri[t] ||= { t })[k] = v; };
+  conv.filas.forEach(r => { add(r.t, 'conv', r); });
+  aver.filas.forEach(r => { add(r.t, 'aver', r); });
+  punt.filas.forEach(r => { add(r.t, 'punt', r); });
+  const filasP = Object.values(pri).filter(p => p.t >= 0).map(p => {
+    let alertas = 0;
+    if (p.conv && p.conv.conv != null && p.conv.conv < METAS.conv) alertas++;
+    if (p.aver && p.aver.tasa != null && p.aver.tasa > METAS.inf) alertas++;
+    if (p.punt && p.punt.punt != null && p.punt.punt < METAS.punt) alertas++;
+    return { ...p, alertas, peso: alertas * 100 + (p.conv?.r || 0) * 2 + (p.aver?.inf || 0) * 5 + (p.punt?.tarde || 0) };
+  }).sort((a, b) => b.peso - a.peso);
+  $('#t-prioridad').innerHTML = `<thead><tr><th>Técnico</th><th class="n">Reportadas</th><th class="n">Convertib.</th><th class="n">Av. infancia</th><th class="n">Puntualidad</th><th>Alertas</th><th class="n ocultar-movil">Reportes</th></tr></thead><tbody>` +
+    (filasP.length ? filasP.slice(0, 15).map(p => {
+      const c = p.conv?.conv ?? null, a = p.aver?.tasa ?? null, u = p.punt?.punt ?? null;
+      const nr = estado.reportes.filter(r => r.tecnico === 't' + p.t).length;
+      return `<tr><td>${esc(TEC[p.t].corto)}</td><td class="n">${p.conv?.r ?? 0}</td><td class="n"><span class="pill ${semaforo(c, METAS.conv, true)}">${f1(c)}</span></td><td class="n"><span class="pill ${semaforo(a, METAS.inf, false)}">${f1(a)}</span></td><td class="n"><span class="pill ${semaforo(u, METAS.punt, true)}">${f1(u)}</span></td><td>${p.alertas ? `<span class="pill mal">${p.alertas} de 3</span>` : '<span class="pill ok">en meta</span>'}</td><td class="n ocultar-movil">${nr}</td></tr>`;
+    }).join('') : `<tr><td colspan="7" class="vacio">Sin órdenes en el periodo.</td></tr>`) + '</tbody>';
+
+  // Convertibilidad
+  $('#fichas-conv').innerHTML =
+    ficha('Convertibilidad', f1(conv.conv), `meta ≥ ${METAS.conv} %`, sc) +
+    ficha('Reportadas', String(conv.R), `de ${conv.C + conv.R} cerradas`, conv.R ? 'alerta' : 'ok') +
+    ficha('Sin motivo', String(conv.motivos['SIN MOTIVO'] || 0), 'reportadas sin código', (conv.motivos['SIN MOTIVO'] || 0) ? 'mal' : 'ok');
+  const mot = Object.entries(conv.motivos).sort((a, b) => b[1] - a[1]);
+  $('#motivos-conv').innerHTML = mot.length ? mot.map(([m, n]) => `<span class="chip">${esc(m.toLowerCase())} <strong class="num">${n}</strong></span>`).join('') : '<span class="vacio">Sin reportadas.</span>';
+  $('#t-conv').innerHTML = `<thead><tr><th>Técnico</th><th class="n">Reportadas</th><th class="n">Completas</th><th class="n">Convertib.</th><th class="ocultar-movil" style="min-width:90px"></th><th>Motivos principales</th><th class="n">Reportes</th></tr></thead><tbody>` +
+    (conv.filas.length ? conv.filas.map(r => {
+      const s = semaforo(r.conv, METAS.conv, true); const abierto = estado.abiertoConv === r.t;
+      const top = Object.entries(r.motivos).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m, n]) => `<span class="chip">${esc(m.toLowerCase())} ${n}</span>`).join('');
+      let h = `<tr class="fila-tec" data-abrir="conv" data-t="${r.t}" tabindex="0" aria-expanded="${abierto}"><td><strong>${esc(r.t >= 0 ? TEC[r.t].corto : '(sin técnico)')}</strong></td><td class="n">${r.r}</td><td class="n">${r.c}</td><td class="n"><span class="pill ${s}">${f1(r.conv)}</span></td><td class="ocultar-movil">${barra(r.conv, s)}</td><td><div class="chips">${top}</div></td><td class="n">${nRep('convertibilidad', r.t) || ''}</td></tr>`;
+      if (abierto) h += `<tr class="detalle"><td colspan="7"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px"><strong>Órdenes reportadas de ${esc(r.t >= 0 ? TEC[r.t].corto : '')}</strong>${r.t >= 0 ? btnRep('convertibilidad', r.t, '', `${r.r} reportadas, convertibilidad ${f1(r.conv)}`) : ''}</div><div class="tabla-env"><table><thead><tr><th>Fecha</th><th>OS</th><th>Abonado</th><th>Distrito</th><th>Motivo</th><th>Detalle del técnico</th><th></th></tr></thead><tbody>${r.ordenes.sort((a, b) => a.fecha < b.fecha ? 1 : -1).map(x => `<tr><td class="num">${fechaCorta(x.fecha)}</td><td class="num">${esc(x.os)}</td><td class="num">${esc(x.abonado)}</td><td>${esc(x.distrito)}</td><td>${esc(x.motivo)}</td><td>${esc(x.detalle)}</td><td>${r.t >= 0 ? btnRep('convertibilidad', r.t, `OS ${x.os} / ab. ${x.abonado}`, `Reportada el ${x.fecha}: ${x.motivo}`) : ''}</td></tr>`).join('')}</tbody></table></div></td></tr>`;
+      return h;
+    }).join('') : `<tr><td colspan="7" class="vacio">Sin órdenes cerradas en el periodo.</td></tr>`) + '</tbody>';
+
+  // Averías
+  $('#fichas-aver').innerHTML =
+    ficha('Averías de infancia', f1(aver.tasa), `${aver.F} de ${aver.I} instaladas · tope ${METAS.inf} %`, sa) +
+    ficha('Reiteradas', String(aver.reit), 'averías del periodo en abonados con otra avería ≤ 30 días', aver.reit ? 'mal' : 'ok') +
+    ficha('Averías regulares', String(aver.regulares), 'más de 30 días desde la instalación', '') +
+    ficha('Aún en ventana', String(aver.abiertas), 'instaladas hace menos de 30 días: aún pueden sumar averías de infancia', aver.abiertas ? 'alerta' : '');
+  $('#t-aver').innerHTML = `<thead><tr><th>Técnico que instaló</th><th class="n">Instaladas</th><th class="n">Infancia</th><th class="n">% infancia</th><th class="n">Reiteradas</th><th class="ocultar-movil" style="min-width:90px"></th><th class="n">Reportes</th></tr></thead><tbody>` +
+    (aver.filas.length ? aver.filas.filter(r => r.inst || r.inf).map(r => {
+      const s = r.inst ? semaforo(r.tasa, METAS.inf, false) : 'neutro'; const abierto = estado.abiertoAver === r.t;
+      let h = `<tr class="fila-tec" data-abrir="aver" data-t="${r.t}" tabindex="0" aria-expanded="${abierto}"><td><strong>${esc(r.t >= 0 ? TEC[r.t].corto : '(sin técnico)')}</strong></td><td class="n">${r.inst}</td><td class="n">${r.inf}</td><td class="n"><span class="pill ${s}">${f1(r.tasa)}</span></td><td class="n">${r.reit || ''}</td><td class="ocultar-movil">${barra((r.tasa ?? 0) / Math.max(METAS.inf * 3, 1) * 100, s)}</td><td class="n">${nRep('averias', r.t) || ''}</td></tr>`;
+      if (abierto) h += `<tr class="detalle"><td colspan="7"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px"><strong>Averías de infancia de sus instalaciones</strong>${r.t >= 0 ? btnRep('averias', r.t, '', `${r.inf} averías de infancia de ${r.inst} instaladas (${f1(r.tasa)})`) : ''}</div>${r.lista.length ? tablaAver(r.lista) : '<div class="vacio">Sin averías de infancia.</div>'}</td></tr>`;
+      return h;
+    }).join('') : `<tr><td colspan="7" class="vacio">Sin instalaciones completas en el periodo.</td></tr>`) + '</tbody>';
+  const clase = $('#f-aver-clase').value;
+  const lista = aver.delPeriodo.filter(a => clase === 'inf' ? (a.infancia || a.reiterada) : clase === 'reg' ? !a.infancia : true).sort((a, b) => a.fecha < b.fecha ? 1 : -1);
+  $('#t-aver-lista').innerHTML = lista.length ? tablaAver(lista, true).replace(/^<div class="tabla-env">|<\/div>$/g, '') : '<tbody><tr><td class="vacio">Sin averías para mostrar.</td></tr></tbody>';
+
+  // Puntualidad
+  $('#fichas-punt').innerHTML =
+    ficha('Puntualidad', f1(punt.punt), `meta ≥ ${METAS.punt} % · ${punt.medidas} llegadas medidas`, sp) +
+    ficha('Llegadas tarde', String(punt.tarde), 'después del fin de la franja', punt.tarde ? 'alerta' : 'ok') +
+    ficha('Sin marca EN DOMICILIO', String(punt.sin), 'órdenes con franja y sin hora de llegada', punt.sin ? 'mal' : 'ok');
+  $('#t-punt').innerHTML = `<thead><tr><th>Técnico</th><th class="n">Medidas</th><th class="n">Antes</th><th class="n">En franja</th><th class="n">Tarde</th><th class="n ocultar-movil">Prom. tarde</th><th class="n">Sin marca</th><th class="n">Puntualidad</th><th class="n">Reportes</th></tr></thead><tbody>` +
+    (punt.filas.length ? punt.filas.map(r => {
+      const s = semaforo(r.punt, METAS.punt, true); const abierto = estado.abiertoPunt === r.t;
+      let h = `<tr class="fila-tec" data-abrir="punt" data-t="${r.t}" tabindex="0" aria-expanded="${abierto}"><td><strong>${esc(TEC[r.t].corto)}</strong></td><td class="n">${r.medidas}</td><td class="n">${r.antes}</td><td class="n">${r.en}</td><td class="n">${r.tarde}</td><td class="n ocultar-movil">${r.tarde ? r.promTarde + ' min' : ''}</td><td class="n">${r.sin || ''}</td><td class="n"><span class="pill ${s}">${f1(r.punt)}</span></td><td class="n">${nRep('puntualidad', r.t) || ''}</td></tr>`;
+      if (abierto) {
+        const ords = r.ordenes.filter(x => claseLlegada(x) !== 'en' && claseLlegada(x) !== 'antes').concat(r.ordenes.filter(x => ['en', 'antes'].includes(claseLlegada(x)))).slice(0, 80);
+        h += `<tr class="detalle"><td colspan="9"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px"><strong>Llegadas de ${esc(TEC[r.t].corto)} (primero tarde y sin marca)</strong>${btnRep('puntualidad', r.t, '', `Puntualidad ${f1(r.punt)}: ${r.tarde} tarde, ${r.sin} sin marca`)}</div><div class="tabla-env"><table><thead><tr><th>Fecha</th><th>OS</th><th>Franja</th><th>En camino</th><th>En domicilio</th><th>Resultado</th><th></th></tr></thead><tbody>${ords.map(x => {
+          const c = claseLlegada(x); const p = c === 'tarde' ? `<span class="pill mal">tarde ${hm(x.llegada) - hm(x.franja.split('-')[1])} min</span>` : c === 'sin' ? '<span class="pill alerta">sin marca</span>' : c === 'antes' ? '<span class="pill ok">antes</span>' : '<span class="pill ok">en franja</span>';
+          return `<tr><td class="num">${fechaCorta(x.fecha)}</td><td class="num">${esc(x.os)}</td><td class="num">${esc(x.franja)}</td><td class="num">${esc(x.enCamino || '—')}</td><td class="num">${esc(x.llegada || '—')}</td><td>${p}</td><td>${c === 'tarde' || c === 'sin' ? btnRep('puntualidad', r.t, `OS ${x.os}`, `${x.fecha} franja ${x.franja}, llegada ${x.llegada || 'sin marca'}`) : ''}</td></tr>`;
+        }).join('')}</tbody></table></div></td></tr>`;
+      }
+      return h;
+    }).join('') : `<tr><td colspan="9" class="vacio">Sin órdenes con franja en el periodo.</td></tr>`) + '</tbody>';
+
+  renderUnidades(inspPeriodo, conf);
+  renderReportes();
+}
+function tablaAver(lista, conTecnico) {
+  return `<div class="tabla-env"><table><thead><tr><th>Fecha avería</th><th>OS</th><th>Abonado</th>${conTecnico ? '<th>Instaló</th>' : ''}<th>Instalado</th><th class="n">Días</th><th>Clase</th><th>Detalle</th><th></th></tr></thead><tbody>${lista.map(a => {
+    const cl = a.dias < 0 ? '<span class="pill neutro">sin instalación enlazada</span>' : a.infancia ? '<span class="pill mal">infancia</span>' : '<span class="pill neutro">regular</span>';
+    return `<tr><td class="num">${fechaCorta(a.fecha)}</td><td class="num">${esc(a.os)}</td><td class="num">${esc(a.abonado)}</td>${conTecnico ? `<td>${a.t >= 0 ? esc(TEC[a.t].corto) : '—'}</td>` : ''}<td class="num">${a.fechaInst ? fechaCorta(a.fechaInst) + ' · OS ' + esc(a.osInst) : '—'}</td><td class="n">${a.dias >= 0 ? a.dias : '—'}</td><td>${cl}${a.reiterada ? ' <span class="pill alerta">reiterada</span>' : ''}</td><td>${esc(a.detalle)}</td><td>${a.t >= 0 ? btnRep('averias', a.t, `OS ${a.os} / ab. ${a.abonado}`, `Avería ${a.fecha}, ${a.dias} días después de la instalación ${a.fechaInst} (OS ${a.osInst})`) : ''}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+// ───────────────────────── Unidades ─────────────────────────
+function renderUnidades(inspPeriodo, conf) {
+  const ult = {};
+  estado.insp.forEach(i => { if (!ult[i.tecnico] || ult[i.tecnico].fecha < i.fecha) ult[i.tecnico] = i; });
+  const vencidas = UNID.filter(u => { const p = PERSONAS.find(x => x.t >= 0 ? x.t === u.t : x.clave.endsWith(':' + u.nombre)); const i = p && ult[p.clave]; return !i || (Date.parse(hoy()) - Date.parse(i.fecha)) / 864e5 > 30; }).length;
+  const conFaltas = inspPeriodo.filter(i => (i.faltas || 0) > 0).length;
+  $('#fichas-unid').innerHTML =
+    ficha('Revisiones en el periodo', String(inspPeriodo.length), conf == null ? 'aún no hay revisiones' : `conformidad media ${f1(conf)}`, conf == null ? '' : semaforo(conf, 90, true)) +
+    ficha('Con faltantes o daños', String(conFaltas), 'revisiones con algún ítem en falta o malo', conFaltas ? 'mal' : 'ok') +
+    ficha('Sin revisión en 30 días', String(vencidas), `de ${UNID.length} técnicos con unidad`, vencidas ? 'alerta' : 'ok');
+  const filas = UNID.filter(u => estado.tecnico === '' || String(u.t) === estado.tecnico).map(u => {
+    const p = PERSONAS.find(x => x.t >= 0 ? x.t === u.t : x.clave.endsWith(':' + u.nombre)); const i = p && ult[p.clave];
+    const dias = i ? Math.round((Date.parse(hoy()) - Date.parse(i.fecha)) / 864e5) : null;
+    return { u, p, i, dias };
+  }).sort((a, b) => (b.dias ?? 999) - (a.dias ?? 999));
+  $('#t-unidades').innerHTML = `<thead><tr><th>Técnico</th><th>Unidad</th><th>Placa</th><th>Última revisión</th><th class="n">Conformidad</th><th></th></tr></thead><tbody>` +
+    (filas.length ? filas.map(({ u, p, i, dias }) => `<tr><td>${esc(p ? p.nombre : nombreCorto(u.nombre))}</td><td>${esc(u.vehiculo || '—')}</td><td class="num">${esc(u.placa || '—')}</td><td>${i ? `${fechaCorta(i.fecha)} <span class="pill ${dias > 30 ? 'alerta' : 'ok'}">hace ${dias} d</span>` : '<span class="pill mal">nunca</span>'}</td><td class="n">${i ? `<span class="pill ${semaforo(i.conformidad, 90, true)}">${f1(i.conformidad)}</span>` : '—'}</td><td><button class="btn mini" type="button" data-insp="${esc(p ? p.clave : '')}">Revisar</button></td></tr>`).join('') : '<tr><td colspan="6" class="vacio">Sin técnicos con unidad.</td></tr>') + '</tbody>';
+  const lista = estado.insp.filter(i => enPeriodo(i.fecha || '') && (estado.tecnico === '' || i.tecnico === 't' + estado.tecnico)).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
+  $('#lista-insp').innerHTML = lista.length ? lista.map(i => {
+    const malos = (i.items || []).filter(x => x.e === 'falta' || x.e === 'malo' || x.e === 'regular');
+    return `<article class="tarjeta ${i.faltas ? '' : 'cerrado'}"><div class="meta"><strong style="color:var(--tinta)">${esc(nombrePersona(i.tecnico))}</strong><span>${esc(i.fecha)}</span><span>${esc({ van: 'Van', moto: 'Moto', otro: 'Vehículo', ninguna: 'Sin unidad' }[i.tipoUnidad] || '')} ${esc(i.placa || '')}</span>${i.km ? `<span>${esc(i.km)} km</span>` : ''}<span class="pill ${semaforo(i.conformidad, 90, true)}">${f1(i.conformidad)} conforme</span><span data-autor="${esc(i.autor || '')}"></span></div>${malos.length ? `<div class="chips">${malos.map(x => `<span class="chip" style="border-color:var(--${x.e === 'regular' ? 'alerta' : 'mal'})">${esc(x.n.toLowerCase())}: ${esc(x.e)}</span>`).join('')}</div>` : '<span class="pill ok">Todo conforme</span>'}${i.obs ? `<p>${esc(i.obs)}</p>` : ''}${galeriaGuardada(i.evidencias)}<div class="acciones">${estado.puedeBorrar ? `<button class="btn mini" type="button" data-borrar-insp="${esc(i._id)}">Eliminar</button>` : ''}</div></article>`;
+  }).join('') : '<div class="vacio">Aún no hay revisiones en este periodo.</div>';
+  ponerAutores();
+}
+function armarChecklist() {
+  const tipo = $('#i-tipo').value; const cont = $('#i-listas');
+  const grupo = (titulo, id, items, opciones) => `<div class="panel" style="margin-top:12px"><header><h3>${esc(titulo)}</h3><span class="pill neutro" data-cuenta="${id}"></span></header><div class="tabla-env"><table class="check-tabla"><tbody>${items.map((n, k) => `<tr><td>${esc(n)}</td><td style="text-align:right"><span class="opciones" role="radiogroup" aria-label="${esc(n)}">${opciones.map(([v, t]) => `<label class="o-${v}"><input type="radio" name="${id}-${k}" value="${v}" data-n="${esc(n)}" data-g="${id}"${v === opciones[0][0] ? ' checked' : ''}>${t}</label>`).join('')}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+  const OP_PARTE = [['ok', 'Bueno'], ['regular', 'Regular'], ['malo', 'Malo']];
+  const OP_ITEM = [['ok', 'Tiene'], ['falta', 'Falta'], ['malo', 'Dañado'], ['na', 'N.A.']];
+  let h = '';
+  if (tipo !== 'ninguna') {
+    h += grupo('Estado de la unidad', 'parte', PARTES[tipo] || PARTES.otro, OP_PARTE);
+    h += grupo('Implementos de la unidad', 'impl', IMPLEMENTOS[tipo] || IMPLEMENTOS.otro, OP_ITEM);
+  }
+  SECCIONES.forEach(s => { h += grupo(s.titulo, s.id, s.items, OP_ITEM); });
+  cont.innerHTML = h;
+  $('#i-docs').innerHTML = tipo === 'ninguna' ? '' : `<div class="panel" style="margin-top:12px"><header><h3>Documentos</h3></header><div class="tabla-env"><table class="check-tabla"><tbody>${DOCS.map((n, k) => `<tr><td>${esc(n)}</td><td style="text-align:right"><span class="opciones" role="radiogroup" aria-label="${esc(n)}">${[['ok', 'Vigente'], ['falta', 'Vencido / no tiene'], ['na', 'N.A.']].map(([v, t]) => `<label class="o-${v}"><input type="radio" name="doc-${k}" value="${v}" data-n="${esc(n)}" data-g="doc"${v === 'ok' ? ' checked' : ''}>${t}</label>`).join('')}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+function abrirInspeccion(clave) {
+  $('#panel-insp').hidden = false;
+  $('#i-tecnico').innerHTML = PERSONAS.map(p => `<option value="${esc(p.clave)}">${esc(p.nombre)}</option>`).join('');
+  if (clave) $('#i-tecnico').value = clave;
+  $('#i-fecha').value = hoy();
+  aplicarUnidad();
+  limpiarEvid('insp');
+  $('#i-obs').value = ''; $('#i-km').value = ''; $('#i-comb').value = ''; $('#i-lugar').value = '';
+  $('#insp-estado').textContent = '';
+  $('#panel-insp').scrollIntoView({ block: 'start' });
+}
+function aplicarUnidad() {
+  const u = unidadDe($('#i-tecnico').value);
+  const v = (u?.vehiculo || '').toUpperCase();
+  $('#i-tipo').value = !u || !u.vehiculo ? 'ninguna' : /CHANGAN/.test(v) ? 'van' : /MOTO|L3/.test(v) ? 'moto' : 'otro';
+  $('#i-placa').value = u?.placa || '';
+  armarChecklist();
+}
+
+// ───────────────────────── Reportes ─────────────────────────
+function renderReportes() {
+  const tipo = $('#f-rep-tipo').value, est = $('#f-rep-estado').value;
+  const lista = estado.reportes.filter(r => (!tipo || r.tipo === tipo) && (!est || r.estado === est) && (estado.tecnico === '' || r.tecnico === 't' + estado.tecnico))
+    .sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
+  $('#cuenta-rep').textContent = String(estado.reportes.filter(r => r.estado !== 'cerrado').length);
+  $('#lista-rep').innerHTML = lista.length ? lista.map(r => `<article class="tarjeta ${r.estado === 'cerrado' ? 'cerrado' : ''}">
+    <div class="meta"><span class="pill ${r.estado === 'cerrado' ? 'ok' : 'alerta'}">${r.estado === 'cerrado' ? 'Cerrado' : 'Abierto'}</span><strong style="color:var(--tinta)">${esc(nombrePersona(r.tecnico))}</strong><span>${esc((TIPOS[r.tipo] || TIPOS.otro).nombre)}</span><span>${esc(r.fecha || '')}</span>${r.ref ? `<span>${esc(r.ref)}</span>` : ''}<span data-autor="${esc(r.autor || '')}"></span></div>
+    ${r.hallazgo ? `<h3>${esc(r.hallazgo)}</h3>` : ''}
+    ${r.contexto ? `<div class="meta">${esc(r.contexto)}</div>` : ''}
+    ${r.detalle ? `<p>${esc(r.detalle)}</p>` : ''}
+    ${r.accion ? `<p><strong>Acción:</strong> ${esc(r.accion)}</p>` : ''}
+    ${galeriaGuardada(r.evidencias)}
+    <div class="acciones">${estado.puedeEscribir ? `<button class="btn mini" type="button" data-editar-rep="${esc(r._id)}">Editar o agregar evidencias</button><button class="btn mini" type="button" data-estado-rep="${esc(r._id)}">${r.estado === 'cerrado' ? 'Reabrir' : 'Cerrar'}</button>` : ''}${estado.puedeBorrar ? `<button class="btn mini" type="button" data-borrar-rep="${esc(r._id)}">Eliminar</button>` : ''}</div>
+  </article>`).join('') : `<div class="vacio">Aún no hay reportes. Ábrelos desde cada indicador con "Registrar hallazgo" o con "Nuevo reporte".</div>`;
+  ponerAutores();
+}
+function galeriaGuardada(ev) {
+  if (!ev || !ev.length) return '';
+  return `<div class="galeria">${ev.map(e => { const url = urlEvid(e.id); return `<figure>${/^video/.test(e.tipo) ? `<video src="${url}" controls preload="metadata"></video>` : `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${esc(e.nombre || 'evidencia')}" loading="lazy"></a>`}<figcaption>${esc(e.nombre || '')}</figcaption></figure>`; }).join('')}</div>`;
+}
+function ponerAutores() {
+  document.querySelectorAll('[data-autor]').forEach(e => { if (e.dataset.autor) e.textContent = 'por ' + e.dataset.autor; });
+}
+const urlEvid = id => `${servidor()}/api/evidencias/${encodeURIComponent(id)}?t=${encodeURIComponent(estado.sesion || '')}`;
+
+// ───────────────────────── Servidor ─────────────────────────
+const servidor = () => (lsGet(LS.srv) || SRV_DEF).replace(/\/+$/, '');
+class ErrorApi extends Error { constructor(m, codigo) { super(m); this.codigo = codigo; } }
+async function api(metodo, ruta, cuerpo) {
+  let r;
+  try {
+    r = await fetch(servidor() + ruta, { method: metodo, headers: { 'Content-Type': 'application/json', ...(estado.sesion ? { Authorization: 'Bearer ' + estado.sesion } : {}) }, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo), cache: 'no-store' });
+  } catch (_) { throw new ErrorApi('Sin conexión con el servidor. Revisa tu internet y vuelve a intentar.', 0); }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && ruta !== '/api/login') { cerrarSesion('Tu sesión venció. Vuelve a entrar.'); }
+  if (!r.ok) throw new ErrorApi(j.error || `Error ${r.status} del servidor.`, r.status);
+  return j;
+}
+function subirArchivo(blob, nombre, progreso) {
+  return new Promise((res, rej) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', servidor() + '/api/evidencias');
+    x.setRequestHeader('Authorization', 'Bearer ' + estado.sesion);
+    x.setRequestHeader('Content-Type', blob.type || 'application/octet-stream');
+    try { x.setRequestHeader('X-Nombre', btoa(unescape(encodeURIComponent(nombre || '')))); } catch (_) { }
+    x.upload.onprogress = e => { if (e.lengthComputable) progreso(Math.round(100 * e.loaded / e.total)); };
+    x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (_) { } x.status === 200 ? res(j) : rej(new ErrorApi(j.error || `Error ${x.status} al subir.`, x.status)); };
+    x.onerror = () => rej(new ErrorApi('Se cortó la conexión al subir. Vuelve a intentar.', 0));
+    x.send(blob);
+  });
+}
+const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+async function recargar(silencioso) {
+  try {
+    const j = await api('GET', '/api/datos');
+    estado.usuario = j.usuario; estado.rol = j.rol; estado.puedeEscribir = true; estado.puedeBorrar = j.rol === 'admin';
+    estado.reportes = j.reportes || []; estado.insp = j.inspecciones || [];
+    if (j.metas) METAS = { ...METAS_DEF, ...j.metas };
+    if (j.torre && (!D || j.torre.generado !== D.generado || j.torre.cargadoEl !== D.cargadoEl)) cargarModelo(j.torre);
+    lsSet(LS.cache, JSON.stringify({ torre: j.torre, reportes: estado.reportes, inspecciones: estado.insp, metas: j.metas, usuario: j.usuario, rol: j.rol }));
+    $('#aviso-db').hidden = true;
+    pintarSesion(); pintarMetas();
+    if (D) render(); else mostrarSinDatos();
+  } catch (e) {
+    if (!silencioso && e.codigo !== 401) { const a = $('#aviso-db'); a.hidden = false; a.textContent = e.message + (D ? ' Estás viendo lo último que se descargó en este equipo.' : ''); }
+  }
+}
+function mostrarSinDatos() {
+  const a = $('#aviso-db'); a.hidden = false; a.className = 'aviso info';
+  a.textContent = estado.rol === 'admin' ? 'El servidor todavía no tiene datos de la Torre. Cárgalos en "Metas y datos" → Cargar datos de la Torre.' : 'El servidor todavía no tiene datos de la Torre. Pide al administrador que los cargue.';
+}
+function pintarSesion() {
+  $('#sesion-txt').textContent = estado.usuario ? `${estado.usuario} · ${estado.rol === 'admin' ? 'administrador' : 'supervisor'}` : '';
+  $('#btn-salir').hidden = !estado.sesion;
+  $('#zona-admin').hidden = estado.rol !== 'admin';
+  $('#btn-metas').disabled = estado.rol !== 'admin';
+}
+function cerrarSesion(msg) {
+  estado.sesion = null; lsSet(LS.token, null); lsSet(LS.cache, null);
+  $('#login').hidden = false; $('#l-msg').textContent = msg || '';
+}
+
+// ───────────────────────── Evidencias ─────────────────────────
+const EVID = { rep: [], insp: [] }; // {id?, tipo, nombre, blob?, url}
+function armarEvid(clave) {
+  const cont = document.querySelector(`[data-evid="${clave}"]`);
+  cont.innerHTML = `<strong>Evidencias (fotos o videos)</strong>
+    <div class="evid-botones">
+      <label class="btn" for="ev-cam-${clave}">Tomar foto<input id="ev-cam-${clave}" type="file" accept="image/*" capture="environment"></label>
+      <label class="btn" for="ev-vid-${clave}">Grabar video<input id="ev-vid-${clave}" type="file" accept="video/*" capture="environment"></label>
+      <label class="btn" for="ev-arch-${clave}">Subir desde galería<input id="ev-arch-${clave}" type="file" accept="image/*,video/*" multiple></label>
+    </div>
+    <small class="intro">Las fotos se reducen a 1600 px antes de subir. Videos hasta 20 MB (graba clips cortos).</small>
+    <div class="galeria" id="gal-${clave}"></div>`;
+  cont.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => { await agregarArchivos(clave, [...inp.files]); inp.value = ''; }));
+}
+async function agregarArchivos(clave, files) {
+  for (const f of files) {
+    if (/^video\//.test(f.type)) {
+      if (f.size > MAX_VIDEO) { avisoForm(clave, `El video "${f.name}" pesa ${(f.size / 1048576).toFixed(1)} MB; el máximo es 20 MB. Graba un clip más corto.`); continue; }
+      EVID[clave].push({ tipo: f.type, nombre: f.name, blob: f, url: URL.createObjectURL(f) });
+    } else if (/^image\//.test(f.type)) {
+      const b = await reducirImagen(f);
+      EVID[clave].push({ tipo: b.type, nombre: f.name, blob: b, url: URL.createObjectURL(b) });
+    }
+  }
+  pintarEvid(clave);
+}
+function reducirImagen(f) {
+  return new Promise(res => {
+    const img = new Image(); const u = URL.createObjectURL(f);
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height)); const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+      c.toBlob(b => res(b && b.size < f.size ? b : f), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); res(f); };
+    img.src = u;
+  });
+}
+function pintarEvid(clave) {
+  $('#gal-' + clave).innerHTML = EVID[clave].map((e, k) => `<figure>${/^video/.test(e.tipo) ? `<video src="${e.url}" muted preload="metadata"></video>` : `<img src="${e.url}" alt="">`}<figcaption>${esc(e.nombre)}</figcaption><button type="button" class="quitar" data-quitar="${clave}:${k}" aria-label="Quitar ${esc(e.nombre)}">×</button></figure>`).join('');
+}
+function limpiarEvid(clave, existentes) {
+  EVID[clave] = (existentes || []).map(e => ({ ...e, url: urlEvid(e.id) }));
+  pintarEvid(clave);
+}
+async function subirEvid(clave, informar) {
+  const salida = [];
+  const pend = EVID[clave].filter(e => !e.id).length; let n = 0;
+  for (const e of EVID[clave]) {
+    if (e.id) { salida.push({ id: e.id, tipo: e.tipo, nombre: e.nombre }); continue; }
+    n++; informar(`Subiendo evidencia ${n} de ${pend}…`);
+    const r = await subirArchivo(e.blob, e.nombre, p => informar(`Subiendo evidencia ${n} de ${pend}… ${p} %`));
+    e.id = r.id;
+    salida.push({ id: r.id, tipo: r.tipo || e.tipo, nombre: e.nombre });
+  }
+  return salida;
+}
+function avisoForm(clave, txt) { (clave === 'rep' ? $('#rep-estado') : $('#insp-estado')).textContent = txt; }
+
+// ───────────────────────── Diálogo de reporte ─────────────────────────
+let editando = null;
+function abrirReporte({ tipo = 'otro', t = null, ref = '', ctx = '', existente = null } = {}) {
+  editando = existente;
+  $('#r-tipo').innerHTML = Object.entries(TIPOS).map(([k, v]) => `<option value="${k}">${esc(v.nombre)}</option>`).join('');
+  $('#r-tecnico').innerHTML = PERSONAS.map(p => `<option value="${esc(p.clave)}">${esc(p.nombre)}</option>`).join('');
+  const r = existente || { tipo, tecnico: t != null ? 't' + t : (estado.tecnico !== '' ? 't' + estado.tecnico : PERSONAS[0]?.clave), ref, contexto: ctx, fecha: hoy(), estado: 'abierto' };
+  $('#r-tipo').value = r.tipo; llenarHallazgos(); if (r.hallazgo) $('#r-hallazgo').value = r.hallazgo;
+  $('#r-tecnico').value = r.tecnico; $('#r-fecha').value = r.fecha || hoy(); $('#r-ref').value = r.ref || '';
+  $('#r-detalle').value = r.detalle || ''; $('#r-accion').value = r.accion || ''; $('#r-estado').value = r.estado || 'abierto';
+  $('#rep-contexto').hidden = !r.contexto; $('#rep-contexto').textContent = r.contexto ? 'Dato de la Torre: ' + r.contexto : '';
+  $('#rep-titulo').textContent = existente ? 'Editar reporte' : 'Nuevo reporte de campo';
+  $('#rep-estado').textContent = estado.puedeEscribir ? '' : 'Entra con tu usuario para poder guardar.';
+  $('#rep-guardar').disabled = !estado.puedeEscribir;
+  limpiarEvid('rep', r.evidencias);
+  $('#dlg-rep').showModal();
+}
+function llenarHallazgos() { const t = TIPOS[$('#r-tipo').value] || TIPOS.otro; $('#r-hallazgo').innerHTML = t.hallazgos.map(h => `<option>${esc(h)}</option>`).join(''); }
+async function guardarReporte(ev) {
+  ev.preventDefault();
+  if (!estado.puedeEscribir) return;
+  const btn = $('#rep-guardar'); btn.disabled = true;
+  try {
+    const evidencias = await subirEvid('rep', t => avisoForm('rep', t));
+    avisoForm('rep', 'Guardando…');
+    const datos = {
+      tipo: $('#r-tipo').value, tecnico: $('#r-tecnico').value, fecha: $('#r-fecha').value, ref: $('#r-ref').value.trim(),
+      hallazgo: $('#r-hallazgo').value, detalle: $('#r-detalle').value.trim(), accion: $('#r-accion').value.trim(), estado: $('#r-estado').value,
+      contexto: editando ? (editando.contexto || '') : ($('#rep-contexto').hidden ? '' : $('#rep-contexto').textContent.replace(/^Dato de la Torre: /, '')),
+      evidencias,
+    };
+    await api('PUT', '/api/reportes/' + (editando ? editando._id : nuevoId()), datos);
+    $('#dlg-rep').close();
+    await recargar(true);
+  } catch (e) {
+    avisoForm('rep', mensajeError(e));
+  } finally { btn.disabled = false; }
+}
+function mensajeError(e) {
+  return (e && e.message) || 'No se pudo guardar. Revisa tu conexión y vuelve a intentar.';
+}
+
+// ───────────────────────── Guardar inspección ─────────────────────────
+async function guardarInspeccion(ev) {
+  ev.preventDefault();
+  if (!estado.puedeEscribir) return;
+  const btn = $('#btn-guardar-insp'); btn.disabled = true;
+  try {
+    const items = [...document.querySelectorAll('#form-insp input[type=radio]:checked')].map(i => ({ g: i.dataset.g, n: i.dataset.n, e: i.value }));
+    const evaluados = items.filter(i => i.e !== 'na');
+    const conformes = evaluados.filter(i => i.e === 'ok').length;
+    const evidencias = await subirEvid('insp', t => avisoForm('insp', t));
+    avisoForm('insp', 'Guardando…');
+    await api('PUT', '/api/inspecciones/' + nuevoId(), {
+      tecnico: $('#i-tecnico').value, fecha: $('#i-fecha').value, tipoUnidad: $('#i-tipo').value, placa: $('#i-placa').value.trim().toUpperCase(),
+      km: $('#i-km').value, combustible: $('#i-comb').value, lugar: $('#i-lugar').value.trim(), obs: $('#i-obs').value.trim(),
+      items, conformidad: evaluados.length ? 100 * conformes / evaluados.length : null, faltas: evaluados.length - conformes, evidencias,
+    });
+    avisoForm('insp', 'Revisión guardada.');
+    $('#panel-insp').hidden = true;
+    await recargar(true);
+  } catch (e) { avisoForm('insp', mensajeError(e)); }
+  finally { btn.disabled = false; }
+}
+
+// ───────────────────────── Eventos ─────────────────────────
+function irA() {
+  const v = (location.hash || '#resumen').slice(1);
+  const ok = ['resumen', 'convertibilidad', 'averias', 'puntualidad', 'unidades', 'reportes'].includes(v) ? v : 'resumen';
+  document.querySelectorAll('section.vista').forEach(s => s.classList.toggle('activa', s.id === 'v-' + ok));
+  document.querySelectorAll('nav.pestanas a').forEach(a => { if (a.getAttribute('href') === '#' + ok) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', irA);
+$('#f-periodo').addEventListener('change', e => { estado.periodo = e.target.value; render(); });
+$('#f-tecnico').addEventListener('change', e => { estado.tecnico = e.target.value; render(); });
+$('#f-aver-clase').addEventListener('change', render);
+$('#f-rep-tipo').innerHTML = '<option value="">Todos</option>' + Object.entries(TIPOS).map(([k, v]) => `<option value="${k}">${esc(v.nombre)}</option>`).join('');
+$('#f-rep-tipo').addEventListener('change', renderReportes);
+$('#f-rep-estado').addEventListener('change', renderReportes);
+$('#r-tipo').addEventListener('change', llenarHallazgos);
+$('#form-rep').addEventListener('submit', guardarReporte);
+$('#rep-cerrar').addEventListener('click', () => $('#dlg-rep').close());
+$('#rep-cancelar').addEventListener('click', () => $('#dlg-rep').close());
+$('#btn-rep-nuevo').addEventListener('click', () => abrirReporte({}));
+$('#btn-nueva-insp').addEventListener('click', () => abrirInspeccion(estado.tecnico !== '' ? 't' + estado.tecnico : ''));
+$('#btn-cerrar-insp').addEventListener('click', () => { $('#panel-insp').hidden = true; });
+$('#i-tecnico').addEventListener('change', aplicarUnidad);
+$('#i-tipo').addEventListener('change', armarChecklist);
+$('#form-insp').addEventListener('submit', guardarInspeccion);
+$('#btn-actualizar').addEventListener('click', async e => { e.target.disabled = true; await recargar(); e.target.disabled = false; });
+$('#btn-salir').addEventListener('click', () => cerrarSesion('Sesión cerrada.'));
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button, tr.fila-tec'); if (!b) return;
+  if (b.dataset.rep) { e.stopPropagation(); abrirReporte({ tipo: b.dataset.rep, t: +b.dataset.t, ref: b.dataset.ref, ctx: b.dataset.ctx }); return; }
+  if (b.dataset.abrir) { const k = { conv: 'abiertoConv', punt: 'abiertoPunt', aver: 'abiertoAver' }[b.dataset.abrir]; const t = +b.dataset.t; estado[k] = estado[k] === t ? null : t; render(); return; }
+  if (b.dataset.quitar) { const [c, k] = b.dataset.quitar.split(':'); EVID[c].splice(+k, 1); pintarEvid(c); return; }
+  if (b.matches('[data-insp]')) { abrirInspeccion(b.dataset.insp); return; }
+  if (b.dataset.editarRep) { const r = estado.reportes.find(x => x._id === b.dataset.editarRep); if (r) abrirReporte({ existente: r }); return; }
+  if (b.dataset.estadoRep) {
+    const r = estado.reportes.find(x => x._id === b.dataset.estadoRep); if (!r) return; b.disabled = true;
+    const { _id, autor, creado, actualizado, editadoPor, ...resto } = r;
+    try { await api('PUT', '/api/reportes/' + _id, { ...resto, estado: r.estado === 'cerrado' ? 'abierto' : 'cerrado' }); await recargar(true); } catch (er) { b.textContent = mensajeError(er); }
+    return;
+  }
+  if (b.dataset.borrarRep || b.dataset.borrarInsp) {
+    if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Eliminar? Toca otra vez'; return; }
+    const col = b.dataset.borrarRep ? 'reportes' : 'inspecciones'; const id = b.dataset.borrarRep || b.dataset.borrarInsp;
+    try { await api('DELETE', `/api/${col}/${id}`); await recargar(true); } catch (er) { b.textContent = mensajeError(er); }
+  }
+});
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr.fila-tec')) { e.preventDefault(); e.target.click(); } });
+
+// Metas y datos
+function pintarMetas() { $('#m-conv').value = METAS.conv; $('#m-inf').value = METAS.inf; $('#m-punt').value = METAS.punt; $('#m-srv').value = servidor(); }
+$('#btn-metas').addEventListener('click', async () => {
+  const m = { conv: +$('#m-conv').value || METAS_DEF.conv, inf: +$('#m-inf').value || METAS_DEF.inf, punt: +$('#m-punt').value || METAS_DEF.punt };
+  try { await api('PUT', '/api/metas', m); METAS = { ...METAS_DEF, ...m }; render(); $('#metas-estado').textContent = 'Metas guardadas para todos.'; } catch (e) { $('#metas-estado').textContent = mensajeError(e); }
+});
+$('#a-torre').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const msg = $('#torre-estado'); msg.textContent = 'Leyendo archivo…';
+  try {
+    const j = JSON.parse(await f.text());
+    msg.textContent = 'Subiendo al servidor…';
+    const r = await api('PUT', '/api/torre', j);
+    msg.textContent = `Listo: ${r.ordenes} órdenes cargadas.`;
+    await recargar(true);
+  } catch (er) { msg.textContent = er instanceof SyntaxError ? 'El archivo no es un JSON válido.' : mensajeError(er); }
+});
+
+// ───────────────────────── Sesión ─────────────────────────
+$('#form-login').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('#l-entrar'); btn.disabled = true; $('#l-msg').textContent = 'Entrando…';
+  try {
+    const srv = $('#l-srv').value.trim().replace(/\/+$/, '');
+    if (srv && srv !== SRV_DEF) lsSet(LS.srv, srv); else lsSet(LS.srv, null);
+    const j = await api('POST', '/api/login', { usuario: $('#l-usuario').value.trim().toLowerCase(), clave: $('#l-clave').value });
+    estado.sesion = j.token; lsSet(LS.token, j.token);
+    $('#l-clave').value = ''; $('#l-msg').textContent = '';
+    $('#login').hidden = true;
+    await recargar();
+  } catch (er) { $('#l-msg').textContent = mensajeError(er); }
+  finally { btn.disabled = false; }
+});
+$('#m-srv-guardar').addEventListener('click', () => { const v = $('#m-srv').value.trim().replace(/\/+$/, ''); lsSet(LS.srv, v && v !== SRV_DEF ? v : null); cerrarSesion('Servidor cambiado: vuelve a entrar.'); });
+
+// ───────────────────────── Arranque ─────────────────────────
+armarEvid('rep'); armarEvid('insp');
+irA();
+$('#l-srv').value = servidor();
+estado.sesion = lsGet(LS.token);
+if (!estado.sesion) { $('#login').hidden = false; }
+else {
+  // Muestra al instante lo último descargado en este equipo y luego actualiza
+  try { const c = JSON.parse(lsGet(LS.cache) || 'null'); if (c) { estado.usuario = c.usuario; estado.rol = c.rol; estado.reportes = c.reportes || []; estado.insp = c.inspecciones || []; if (c.metas) METAS = { ...METAS_DEF, ...c.metas }; if (c.torre) { cargarModelo(c.torre); render(); } } } catch (_) { }
+  pintarSesion(); pintarMetas();
+  recargar();
+}
+setInterval(() => { if (estado.sesion && document.visibilityState === 'visible' && !$('#dlg-rep').open) recargar(true); }, 90000);
+document.addEventListener('visibilitychange', () => { if (estado.sesion && document.visibilityState === 'visible') recargar(true); });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
+// Instalar como app en Android/Chrome
+let instalar = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instalar = e; $('#btn-instalar').hidden = false; });
+$('#btn-instalar').addEventListener('click', async () => { if (!instalar) return; instalar.prompt(); await instalar.userChoice; instalar = null; $('#btn-instalar').hidden = true; });
+</script>
+</body>
+</html>
