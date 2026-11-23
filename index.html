@@ -161,6 +161,14 @@ dialog .pie .estado-envio { margin-right: auto; font-size: .88rem; color: var(--
 .tarjeta p { margin: 0; white-space: pre-wrap; }
 .tarjeta .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
 
+/* Ranking */
+.podio { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.podio-item { background: var(--papel); border: 1px solid var(--linea); border-top: 5px solid var(--linea); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.podio-item.p1 { border-top-color: #c9a227; } .podio-item.p2 { border-top-color: #9aa5ad; } .podio-item.p3 { border-top-color: #b0743c; }
+.podio-pos { font: 700 .85rem var(--display); color: var(--suave); }
+.podio-pts { font: 800 2.2rem/1.05 var(--display); }
+.podio-item .d { font-size: .85rem; color: var(--suave); }
+
 /* Entrada */
 #login { position: fixed; inset: 0; z-index: 20; background: var(--fondo); display: grid; place-items: center; padding: 16px; overflow: auto; }
 #login[hidden] { display: none; }
@@ -206,6 +214,7 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
 </header>
 <nav class="pestanas" aria-label="Secciones">
   <a href="#resumen">Resumen</a>
+  <a href="#ranking">Ranking</a>
   <a href="#convertibilidad">Convertibilidad</a>
   <a href="#averias">Averías de infancia</a>
   <a href="#puntualidad">Puntualidad</a>
@@ -226,6 +235,22 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
     <div class="panel">
       <header><h3>Técnicos a priorizar en campo</h3><span class="pill neutro" id="metas-txt"></span></header>
       <div class="tabla-env"><table id="t-prioridad"></table></div>
+    </div>
+  </section>
+
+  <!-- RANKING -->
+  <section class="vista" id="v-ranking">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <h2>Ranking de técnicos</h2>
+        <p class="intro">Puntaje de 0 a 100 del periodo elegido: convertibilidad 35 %, averías de infancia 25 %, puntualidad 25 % y revisión de unidad 15 %. Cada indicador vale 100 si cumple la meta y baja a 0 a 30 puntos por debajo (convertibilidad: 100 con 85 % o más, 0 con 55 %); averías de infancia: 100 hasta el tope y 0 al triple del tope; revisión de unidad: 100 si todo conforme, 0 con 70 %. Si falta un indicador, su peso se reparte entre los demás. Entran los técnicos con 5 instalaciones cerradas o más.</p>
+      </div>
+      <button class="btn prim" type="button" id="btn-compartir-ranking">Compartir ranking</button>
+    </div>
+    <div class="podio" id="podio"></div>
+    <div class="panel">
+      <header><h3>Tabla completa</h3><span class="estado-envio" id="ranking-estado"></span></header>
+      <div class="tabla-env"><table id="t-ranking"></table></div>
     </div>
   </section>
 
@@ -524,6 +549,53 @@ function claseLlegada(x) {
   const [ini, fin] = x.franja.split('-').map(hm); const m = hm(x.llegada);
   return m < ini ? 'antes' : m <= fin ? 'en' : 'tarde';
 }
+// Ranking: puntaje ponderado de las evaluaciones (siempre de todos los técnicos del periodo)
+const PESOS = { conv: 35, inf: 25, punt: 25, unid: 15 };
+const MIN_CERRADAS = 5;
+const tope100 = v => Math.max(0, Math.min(100, v));
+const RANGO_NOTA = 30; // puntos porcentuales bajo la meta en los que la nota llega a 0
+const notaMeta = (valor, meta) => tope100(100 - Math.max(0, meta - valor) / RANGO_NOTA * 100);
+function calcRanking() {
+  const tecGuardado = estado.tecnico; estado.tecnico = '';
+  const conv = calcConv(), aver = calcAver(), punt = calcPunt();
+  estado.tecnico = tecGuardado;
+  const por = {};
+  const fila = t => por[t] ||= { t, cerradas: 0, notas: {} };
+  conv.filas.filter(r => r.t >= 0).forEach(r => { const f = fila(r.t); f.cerradas = r.c + r.r; f.conv = r.conv; f.inst = r.c; if (r.conv != null) f.notas.conv = notaMeta(r.conv, METAS.conv); });
+  aver.filas.filter(r => r.t >= 0 && r.inst).forEach(r => { const f = fila(r.t); f.inf = r.tasa; f.nInf = r.inf; f.notas.inf = tope100(100 - Math.max(0, r.tasa - METAS.inf) / (2 * METAS.inf) * 100); });
+  punt.filas.filter(r => r.medidas).forEach(r => { const f = fila(r.t); f.punt = r.punt; f.notas.punt = notaMeta(r.punt, METAS.punt); });
+  estado.insp.filter(i => enPeriodo(i.fecha || '') && i.conformidad != null && /^t\d+$/.test(i.tecnico || '')).forEach(i => {
+    const f = fila(+i.tecnico.slice(1)); (f.revs ||= []).push(i.conformidad);
+  });
+  Object.values(por).forEach(f => {
+    if (f.revs) { f.unid = f.revs.reduce((a, b) => a + b, 0) / f.revs.length; f.notas.unid = notaMeta(f.unid, 100); }
+    const claves = Object.keys(f.notas); const peso = claves.reduce((s, k) => s + PESOS[k], 0);
+    f.puntaje = peso ? claves.reduce((s, k) => s + f.notas[k] * PESOS[k], 0) / peso : null;
+    f.califica = f.cerradas >= MIN_CERRADAS && f.puntaje != null;
+  });
+  const lista = Object.values(por).sort((a, b) => (b.califica - a.califica) || (b.puntaje ?? -1) - (a.puntaje ?? -1) || b.cerradas - a.cerradas);
+  let pos = 0; lista.forEach(f => { f.pos = f.califica ? ++pos : null; });
+  return lista;
+}
+function claseNota(n) { return n == null ? 'neutro' : n >= 90 ? 'ok' : n >= 70 ? 'alerta' : 'mal'; }
+function renderRanking() {
+  const lista = calcRanking(); const ok = lista.filter(f => f.califica);
+  const medalla = ['1.º', '2.º', '3.º'];
+  $('#podio').innerHTML = ok.slice(0, 3).map((f, k) => `<div class="podio-item p${k + 1}"><span class="podio-pos">${medalla[k]}</span><strong>${esc(TEC[f.t].corto)}</strong><span class="podio-pts num">${Math.round(f.puntaje)}</span><span class="d">${f.cerradas} cerradas</span></div>`).join('') || '<div class="vacio">Aún no hay técnicos con suficientes órdenes en el periodo.</div>';
+  const nota = (n, txt) => n == null ? '<span class="pill neutro">—</span>' : `<span class="pill ${claseNota(n)}" title="${Math.round(n)} puntos">${txt}</span>`;
+  $('#t-ranking').innerHTML = `<thead><tr><th class="n">#</th><th>Técnico</th><th class="n">Puntaje</th><th class="ocultar-movil" style="min-width:90px"></th><th class="n">Convertib.</th><th class="n">Av. infancia</th><th class="n">Puntualidad</th><th class="n">Rev. unidad</th><th class="n ocultar-movil">Cerradas</th></tr></thead><tbody>` +
+    (lista.length ? lista.map(f => {
+      const marca = estado.tecnico !== '' && String(f.t) === estado.tecnico ? ' style="outline:2px solid var(--acento)"' : '';
+      return `<tr${marca}><td class="n"><strong>${f.pos ?? '—'}</strong></td><td>${esc(TEC[f.t].corto)}${f.califica ? '' : ' <span class="pill neutro">pocas órdenes</span>'}</td><td class="n"><strong class="num">${f.puntaje == null ? '—' : Math.round(f.puntaje)}</strong></td><td class="ocultar-movil">${barra(f.puntaje, claseNota(f.puntaje))}</td><td class="n">${nota(f.notas.conv, f1(f.conv))}</td><td class="n">${nota(f.notas.inf, f1(f.inf))}</td><td class="n">${nota(f.notas.punt, f1(f.punt))}</td><td class="n">${nota(f.notas.unid, f.unid == null ? '' : f1(f.unid))}</td><td class="n ocultar-movil">${f.cerradas}</td></tr>`;
+    }).join('') : '<tr><td colspan="9" class="vacio">Sin datos en el periodo.</td></tr>') + '</tbody>';
+  $('#ranking-estado').textContent = `${ok.length} técnicos en el ranking · ${$('#f-periodo').selectedOptions[0]?.textContent || ''}`;
+}
+function textoRanking() {
+  const ok = calcRanking().filter(f => f.califica);
+  return [`RANKING DE TÉCNICOS · ${$('#f-periodo').selectedOptions[0]?.textContent || ''}`, `Puntaje 0-100: convertibilidad 35 %, av. infancia 25 %, puntualidad 25 %, rev. unidad 15 %`, '',
+    ...ok.map(f => `${f.pos}. ${TEC[f.t].corto}: ${Math.round(f.puntaje)} pts (conv ${f1(f.conv)}, infancia ${f1(f.inf)}, puntual ${f1(f.punt)})`)].join('\n');
+}
+
 function calcPunt() {
   const por = {};
   INST.filter(x => enPeriodo(x.fecha) && deTec(x.t) && x.franja && x.t >= 0).forEach(x => {
@@ -631,6 +703,7 @@ function render() {
     }).join('') : `<tr><td colspan="9" class="vacio">Sin órdenes con franja en el periodo.</td></tr>`) + '</tbody>';
 
   renderUnidades(inspPeriodo, conf);
+  renderRanking();
   renderReportes();
 }
 function tablaAver(lista, conTecnico) {
@@ -996,7 +1069,7 @@ async function guardarInspeccion(ev) {
 // ───────────────────────── Eventos ─────────────────────────
 function irA() {
   const v = (location.hash || '#resumen').slice(1);
-  const ok = ['resumen', 'convertibilidad', 'averias', 'puntualidad', 'unidades', 'reportes'].includes(v) ? v : 'resumen';
+  const ok = ['resumen', 'ranking', 'convertibilidad', 'averias', 'puntualidad', 'unidades', 'reportes'].includes(v) ? v : 'resumen';
   document.querySelectorAll('section.vista').forEach(s => s.classList.toggle('activa', s.id === 'v-' + ok));
   document.querySelectorAll('nav.pestanas a').forEach(a => { if (a.getAttribute('href') === '#' + ok) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   window.scrollTo(0, 0);
@@ -1054,6 +1127,11 @@ function pintarMetas() { $('#m-conv').value = METAS.conv; $('#m-inf').value = ME
 $('#btn-metas').addEventListener('click', async () => {
   const m = { conv: +$('#m-conv').value || METAS_DEF.conv, inf: +$('#m-inf').value || METAS_DEF.inf, punt: +$('#m-punt').value || METAS_DEF.punt };
   await api('PUT', '/api/metas', m); METAS = { ...METAS_DEF, ...m }; render(); $('#metas-estado').textContent = 'Metas guardadas en este equipo.';
+});
+$('#btn-compartir-ranking').addEventListener('click', async e => {
+  const b = e.currentTarget; const texto = textoRanking();
+  try { if (navigator.share) { await navigator.share({ title: 'Ranking de técnicos MYM', text: texto }); return; } } catch (er) { if (er.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(texto); b.textContent = 'Ranking copiado'; } catch (_) { b.textContent = 'No se pudo copiar'; }
 });
 $('#btn-respaldo').addEventListener('click', e => descargarRespaldo(e.currentTarget));
 $('#a-respaldo').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await importarRespaldo(f, $('#respaldo-estado')); });
