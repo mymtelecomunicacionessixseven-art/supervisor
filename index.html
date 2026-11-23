@@ -384,9 +384,8 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
   <form class="caja" id="form-login">
     <img src="logo.png" alt="MYM Telecomunicaciones">
     <h2>Supervisión de campo</h2>
-    <p class="intro" style="margin:0">Entra con el usuario y clave que te dio la oficina.</p>
-    <label for="l-usuario">Usuario<input id="l-usuario" autocomplete="username" autocapitalize="none" required></label>
-    <label for="l-clave">Clave<input id="l-clave" type="password" autocomplete="current-password" required></label>
+    <p class="intro" style="margin:0">Entra con tu DNI. Debe estar habilitado por la oficina.</p>
+    <label for="l-dni">DNI<input id="l-dni" inputmode="numeric" pattern="\d{8}" maxlength="8" autocomplete="off" required placeholder="8 dígitos"></label>
     <details><summary style="font-size:.85rem;color:var(--suave);cursor:pointer">Servidor</summary><label for="l-srv" style="margin-top:6px">Dirección<input id="l-srv" inputmode="url" autocomplete="off"></label></details>
     <div id="l-msg" role="status"></div>
     <button class="btn prim" type="submit" id="l-entrar">Entrar</button>
@@ -983,9 +982,9 @@ $('#form-login').addEventListener('submit', async e => {
   try {
     const srv = $('#l-srv').value.trim().replace(/\/+$/, '');
     if (srv && srv !== SRV_DEF) lsSet(LS.srv, srv); else lsSet(LS.srv, null);
-    const j = await api('POST', '/api/login', { usuario: $('#l-usuario').value.trim().toLowerCase(), clave: $('#l-clave').value });
+    const j = await api('POST', '/api/login', { dni: $('#l-dni').value.replace(/\D/g, '') });
     estado.sesion = j.token; lsSet(LS.token, j.token);
-    $('#l-clave').value = ''; $('#l-msg').textContent = '';
+    $('#l-dni').value = ''; $('#l-msg').textContent = '';
     $('#login').hidden = true;
     await recargar();
   } catch (er) { $('#l-msg').textContent = mensajeError(er); }
