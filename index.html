@@ -324,7 +324,7 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
     <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-end">
       <div>
         <h2>Reportes de campo</h2>
-        <p class="intro">Todo lo que el supervisor registró desde los indicadores, con sus evidencias. Los ve cualquiera con acceso al aplicativo.</p>
+        <p class="intro">Lo que registraste desde los indicadores, con sus evidencias. Se guarda en este equipo: usa "Compartir" para enviarlo por WhatsApp con las fotos.</p>
       </div>
       <div class="filtros">
         <label for="f-rep-tipo">Tipo<select id="f-rep-tipo"><option value="">Todos</option></select></label>
@@ -343,16 +343,11 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
         <label class="campo"><span>Averías de infancia máximas (% de lo instalado)</span><input type="number" id="m-inf" min="0" max="100" step="0.1"></label>
         <label class="campo"><span>Puntualidad mínima (%)</span><input type="number" id="m-punt" min="0" max="100" step="1"></label>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" id="btn-metas">Guardar metas</button><span id="metas-estado" class="estado-envio">Solo el administrador cambia las metas.</span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" id="btn-metas">Guardar metas</button><span id="metas-estado" class="estado-envio"></span></div>
       <p class="intro" id="txt-fuente"></p>
-      <div id="zona-admin" hidden style="display:flex;flex-direction:column;gap:6px">
-        <strong>Cargar datos de la Torre</strong>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="btn" for="a-torre">Elegir datos_supervisor.json<input id="a-torre" type="file" accept=".json,application/json" style="position:absolute;width:1px;height:1px;opacity:0"></label><span id="torre-estado" class="estado-envio"></span></div>
-      </div>
-      <div class="form">
-        <label class="campo ancho"><span>Servidor</span><input type="text" id="m-srv" autocomplete="off" inputmode="url"></label>
-      </div>
-      <div><button class="btn" type="button" id="m-srv-guardar">Cambiar servidor</button></div>
+      <strong>Respaldo de reportes y evidencias</strong>
+      <p class="intro" style="margin:0">Los reportes, revisiones, fotos y videos se guardan en este equipo. Descarga un respaldo seguido; con él puedes pasarlos a otro celular o a la oficina.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" id="btn-respaldo">Descargar respaldo</button><label class="btn" for="a-respaldo">Importar respaldo<input id="a-respaldo" type="file" accept=".json,application/json" style="position:absolute;width:1px;height:1px;opacity:0"></label><span id="respaldo-estado" class="estado-envio"></span></div>
     </div>
   </details>
 </main>
@@ -386,7 +381,6 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
     <h2>Supervisión de campo</h2>
     <p class="intro" style="margin:0">Entra con tu DNI. Debe estar habilitado por la oficina.</p>
     <label for="l-dni">DNI<input id="l-dni" inputmode="numeric" pattern="\d{8}" maxlength="8" autocomplete="off" required placeholder="8 dígitos"></label>
-    <details><summary style="font-size:.85rem;color:var(--suave);cursor:pointer">Servidor</summary><label for="l-srv" style="margin-top:6px">Dirección<input id="l-srv" inputmode="url" autocomplete="off"></label></details>
     <div id="l-msg" role="status"></div>
     <button class="btn prim" type="submit" id="l-entrar">Entrar</button>
   </form>
@@ -394,9 +388,9 @@ main { padding-bottom: max(60px, env(safe-area-inset-bottom)); }
 <script>
 'use strict';
 // ───────────────────────── Datos fijos ─────────────────────────
-// Servidor del supervisor (datos de la Torre, reportes, revisiones y evidencias). Se puede cambiar en "Metas y datos".
-const SRV_DEF = 'https://supervisor.137-184-20-246.sslip.io';
-const LS = { srv: 'mym.sup.servidor', token: 'mym.sup.token', cache: 'mym.sup.cache' };
+// Los datos de la Torre vienen cifrados en datos.enc (la llave es el DNI). Reportes, revisiones y evidencias
+// se guardan en este equipo (IndexedDB) y se comparten por WhatsApp o con un respaldo.
+const LS = { dni: 'mym.sup.dni', metas: 'mym.sup.metas' };
 const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (_) { } };
 let D = null;
@@ -664,7 +658,7 @@ function renderUnidades(inspPeriodo, conf) {
   const lista = estado.insp.filter(i => enPeriodo(i.fecha || '') && (estado.tecnico === '' || i.tecnico === 't' + estado.tecnico)).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
   $('#lista-insp').innerHTML = lista.length ? lista.map(i => {
     const malos = (i.items || []).filter(x => x.e === 'falta' || x.e === 'malo' || x.e === 'regular');
-    return `<article class="tarjeta ${i.faltas ? '' : 'cerrado'}"><div class="meta"><strong style="color:var(--tinta)">${esc(nombrePersona(i.tecnico))}</strong><span>${esc(i.fecha)}</span><span>${esc({ van: 'Van', moto: 'Moto', otro: 'Vehículo', ninguna: 'Sin unidad' }[i.tipoUnidad] || '')} ${esc(i.placa || '')}</span>${i.km ? `<span>${esc(i.km)} km</span>` : ''}<span class="pill ${semaforo(i.conformidad, 90, true)}">${f1(i.conformidad)} conforme</span><span data-autor="${esc(i.autor || '')}"></span></div>${malos.length ? `<div class="chips">${malos.map(x => `<span class="chip" style="border-color:var(--${x.e === 'regular' ? 'alerta' : 'mal'})">${esc(x.n.toLowerCase())}: ${esc(x.e)}</span>`).join('')}</div>` : '<span class="pill ok">Todo conforme</span>'}${i.obs ? `<p>${esc(i.obs)}</p>` : ''}${galeriaGuardada(i.evidencias)}<div class="acciones">${estado.puedeBorrar ? `<button class="btn mini" type="button" data-borrar-insp="${esc(i._id)}">Eliminar</button>` : ''}</div></article>`;
+    return `<article class="tarjeta ${i.faltas ? '' : 'cerrado'}"><div class="meta"><strong style="color:var(--tinta)">${esc(nombrePersona(i.tecnico))}</strong><span>${esc(i.fecha)}</span><span>${esc({ van: 'Van', moto: 'Moto', otro: 'Vehículo', ninguna: 'Sin unidad' }[i.tipoUnidad] || '')} ${esc(i.placa || '')}</span>${i.km ? `<span>${esc(i.km)} km</span>` : ''}<span class="pill ${semaforo(i.conformidad, 90, true)}">${f1(i.conformidad)} conforme</span><span data-autor="${esc(i.autor || '')}"></span></div>${malos.length ? `<div class="chips">${malos.map(x => `<span class="chip" style="border-color:var(--${x.e === 'regular' ? 'alerta' : 'mal'})">${esc(x.n.toLowerCase())}: ${esc(x.e)}</span>`).join('')}</div>` : '<span class="pill ok">Todo conforme</span>'}${i.obs ? `<p>${esc(i.obs)}</p>` : ''}${galeriaGuardada(i.evidencias)}<div class="acciones"><button class="btn mini prim" type="button" data-compartir-insp="${esc(i._id)}">Compartir</button>${estado.puedeBorrar ? `<button class="btn mini" type="button" data-borrar-insp="${esc(i._id)}">Eliminar</button>` : ''}</div></article>`;
   }).join('') : '<div class="vacio">Aún no hay revisiones en este periodo.</div>';
   ponerAutores();
 }
@@ -714,7 +708,7 @@ function renderReportes() {
     ${r.detalle ? `<p>${esc(r.detalle)}</p>` : ''}
     ${r.accion ? `<p><strong>Acción:</strong> ${esc(r.accion)}</p>` : ''}
     ${galeriaGuardada(r.evidencias)}
-    <div class="acciones">${estado.puedeEscribir ? `<button class="btn mini" type="button" data-editar-rep="${esc(r._id)}">Editar o agregar evidencias</button><button class="btn mini" type="button" data-estado-rep="${esc(r._id)}">${r.estado === 'cerrado' ? 'Reabrir' : 'Cerrar'}</button>` : ''}${estado.puedeBorrar ? `<button class="btn mini" type="button" data-borrar-rep="${esc(r._id)}">Eliminar</button>` : ''}</div>
+    <div class="acciones"><button class="btn mini prim" type="button" data-compartir-rep="${esc(r._id)}">Compartir</button>${estado.puedeEscribir ? `<button class="btn mini" type="button" data-editar-rep="${esc(r._id)}">Editar o agregar evidencias</button><button class="btn mini" type="button" data-estado-rep="${esc(r._id)}">${r.estado === 'cerrado' ? 'Reabrir' : 'Cerrar'}</button>` : ''}${estado.puedeBorrar ? `<button class="btn mini" type="button" data-borrar-rep="${esc(r._id)}">Eliminar</button>` : ''}</div>
   </article>`).join('') : `<div class="vacio">Aún no hay reportes. Ábrelos desde cada indicador con "Registrar hallazgo" o con "Nuevo reporte".</div>`;
   ponerAutores();
 }
@@ -725,63 +719,151 @@ function galeriaGuardada(ev) {
 function ponerAutores() {
   document.querySelectorAll('[data-autor]').forEach(e => { if (e.dataset.autor) e.textContent = 'por ' + e.dataset.autor; });
 }
-const urlEvid = id => `${servidor()}/api/evidencias/${encodeURIComponent(id)}?t=${encodeURIComponent(estado.sesion || '')}`;
+const URLS = new Map(); // id de evidencia → objectURL
+const urlEvid = id => URLS.get(id) || '';
 
-// ───────────────────────── Servidor ─────────────────────────
-const servidor = () => (lsGet(LS.srv) || SRV_DEF).replace(/\/+$/, '');
-class ErrorApi extends Error { constructor(m, codigo) { super(m); this.codigo = codigo; } }
-async function api(metodo, ruta, cuerpo) {
-  let r;
-  try {
-    r = await fetch(servidor() + ruta, { method: metodo, headers: { 'Content-Type': 'application/json', ...(estado.sesion ? { Authorization: 'Bearer ' + estado.sesion } : {}) }, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo), cache: 'no-store' });
-  } catch (_) { throw new ErrorApi('Sin conexión con el servidor. Revisa tu internet y vuelve a intentar.', 0); }
-  const j = await r.json().catch(() => ({}));
-  if (r.status === 401 && ruta !== '/api/login') { cerrarSesion('Tu sesión venció. Vuelve a entrar.'); }
-  if (!r.ok) throw new ErrorApi(j.error || `Error ${r.status} del servidor.`, r.status);
-  return j;
+// ───────────────────────── Datos cifrados (la llave es el DNI) ─────────────────────────
+const deB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function abrirDatos(dni) {
+  const r = await fetch('datos.enc', { cache: 'no-store' }).catch(() => null) || await caches?.match?.('datos.enc');
+  if (!r || !r.ok) throw new Error('No se pudieron descargar los datos. Revisa tu internet.');
+  const enc = await r.json();
+  const te = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', te.encode(dni), 'PBKDF2', false, ['deriveKey']);
+  const kek = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: deB64(enc.salt), iterations: enc.it, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  let quien = null;
+  for (const l of enc.llaves) {
+    try { quien = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: deB64(l.iv) }, kek, deB64(l.d)))); break; } catch (_) { }
+  }
+  if (!quien) { const e = new Error('Ese DNI no tiene acceso. Pide a la oficina que te habilite.'); e.codigo = 401; throw e; }
+  const k = await crypto.subtle.importKey('raw', deB64(quien.k), 'AES-GCM', false, ['decrypt']);
+  let plano = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: deB64(enc.iv) }, k, deB64(enc.data)));
+  if (enc.gzip) plano = new Uint8Array(await new Response(new Blob([plano]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  return { datos: JSON.parse(new TextDecoder().decode(plano)), nombre: quien.nombre, rol: quien.rol };
 }
-function subirArchivo(blob, nombre, progreso) {
-  return new Promise((res, rej) => {
-    const x = new XMLHttpRequest();
-    x.open('POST', servidor() + '/api/evidencias');
-    x.setRequestHeader('Authorization', 'Bearer ' + estado.sesion);
-    x.setRequestHeader('Content-Type', blob.type || 'application/octet-stream');
-    try { x.setRequestHeader('X-Nombre', btoa(unescape(encodeURIComponent(nombre || '')))); } catch (_) { }
-    x.upload.onprogress = e => { if (e.lengthComputable) progreso(Math.round(100 * e.loaded / e.total)); };
-    x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (_) { } x.status === 200 ? res(j) : rej(new ErrorApi(j.error || `Error ${x.status} al subir.`, x.status)); };
-    x.onerror = () => rej(new ErrorApi('Se cortó la conexión al subir. Vuelve a intentar.', 0));
-    x.send(blob);
+
+// ───────────────────────── Almacenamiento en este equipo (IndexedDB) ─────────────────────────
+let _idb = null;
+function idb() {
+  return _idb ||= new Promise((res, rej) => {
+    const r = indexedDB.open('mym-supervisor', 1);
+    r.onupgradeneeded = () => { const d = r.result; ['reportes', 'inspecciones', 'archivos'].forEach(n => d.objectStoreNames.contains(n) || d.createObjectStore(n, { keyPath: '_id' })); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(new Error('Este navegador no permite guardar datos (¿modo incógnito?).'));
   });
 }
-const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-async function recargar(silencioso) {
-  try {
-    const j = await api('GET', '/api/datos');
-    estado.usuario = j.usuario; estado.rol = j.rol; estado.puedeEscribir = true; estado.puedeBorrar = j.rol === 'admin';
-    estado.reportes = j.reportes || []; estado.insp = j.inspecciones || [];
-    if (j.metas) METAS = { ...METAS_DEF, ...j.metas };
-    if (j.torre && (!D || j.torre.generado !== D.generado || j.torre.cargadoEl !== D.cargadoEl)) cargarModelo(j.torre);
-    lsSet(LS.cache, JSON.stringify({ torre: j.torre, reportes: estado.reportes, inspecciones: estado.insp, metas: j.metas, usuario: j.usuario, rol: j.rol }));
-    $('#aviso-db').hidden = true;
-    pintarSesion(); pintarMetas();
-    if (D) render(); else mostrarSinDatos();
-  } catch (e) {
-    if (!silencioso && e.codigo !== 401) { const a = $('#aviso-db'); a.hidden = false; a.textContent = e.message + (D ? ' Estás viendo lo último que se descargó en este equipo.' : ''); }
-  }
+async function tx(almacen, modo, fn) {
+  const d = await idb();
+  return new Promise((res, rej) => {
+    const t = d.transaction(almacen, modo); const s = t.objectStore(almacen); let salida;
+    Promise.resolve(fn(s)).then(v => { salida = v; });
+    t.oncomplete = () => res(salida); t.onerror = () => rej(t.error || new Error('No se pudo guardar en el equipo.'));
+    t.onabort = () => rej(t.error || new Error('Sin espacio en el equipo: borra reportes antiguos o descarga un respaldo.'));
+  });
 }
-function mostrarSinDatos() {
-  const a = $('#aviso-db'); a.hidden = false; a.className = 'aviso info';
-  a.textContent = estado.rol === 'admin' ? 'El servidor todavía no tiene datos de la Torre. Cárgalos en "Metas y datos" → Cargar datos de la Torre.' : 'El servidor todavía no tiene datos de la Torre. Pide al administrador que los cargue.';
+const pedir = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const todos = almacen => tx(almacen, 'readonly', s => pedir(s.getAll()));
+const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+class ErrorApi extends Error { constructor(m, codigo) { super(m); this.codigo = codigo; } }
+// Misma forma que antes tenía el servidor, ahora local
+async function api(metodo, ruta, cuerpo) {
+  const m = ruta.match(/^\/api\/(reportes|inspecciones)\/([\w-]+)$/);
+  if (m && metodo === 'PUT') {
+    const [, col, id] = m;
+    const previo = await tx(col, 'readonly', s => pedir(s.get(id)));
+    const doc = { ...cuerpo, _id: id, autor: previo?.autor || estado.usuario, creado: previo?.creado || new Date().toISOString(), actualizado: new Date().toISOString(), editadoPor: estado.usuario };
+    await tx(col, 'readwrite', s => s.put(doc));
+    return doc;
+  }
+  if (m && metodo === 'DELETE') { await tx(m[1], 'readwrite', s => s.delete(m[2])); return { ok: true }; }
+  if (ruta === '/api/metas') { lsSet(LS.metas, JSON.stringify(cuerpo)); return cuerpo; }
+  throw new ErrorApi('Operación no disponible.', 404);
+}
+async function subirArchivo(blob, nombre, progreso) {
+  const id = nuevoId();
+  await tx('archivos', 'readwrite', s => s.put({ _id: id, blob, tipo: blob.type, nombre }));
+  progreso(100);
+  return { id, tipo: blob.type, nombre };
+}
+async function recargar() {
+  estado.reportes = await todos('reportes').catch(() => []);
+  estado.insp = await todos('inspecciones').catch(() => []);
+  const usados = new Set([...estado.reportes, ...estado.insp].flatMap(r => (r.evidencias || []).map(e => e.id)));
+  for (const id of usados) {
+    if (URLS.has(id)) continue;
+    const a = await tx('archivos', 'readonly', s => pedir(s.get(id))).catch(() => null);
+    if (a && a.blob) URLS.set(id, URL.createObjectURL(a.blob));
+  }
+  try { const mt = JSON.parse(lsGet(LS.metas) || 'null'); if (mt) METAS = { ...METAS_DEF, ...mt }; } catch (_) { }
+  pintarSesion(); pintarMetas();
+  if (D) render();
 }
 function pintarSesion() {
   $('#sesion-txt').textContent = estado.usuario ? `${estado.usuario} · ${estado.rol === 'admin' ? 'administrador' : 'supervisor'}` : '';
   $('#btn-salir').hidden = !estado.sesion;
-  $('#zona-admin').hidden = estado.rol !== 'admin';
-  $('#btn-metas').disabled = estado.rol !== 'admin';
 }
 function cerrarSesion(msg) {
-  estado.sesion = null; lsSet(LS.token, null); lsSet(LS.cache, null);
+  estado.sesion = null; lsSet(LS.dni, null);
   $('#login').hidden = false; $('#l-msg').textContent = msg || '';
+}
+async function entrar(dni, silencioso) {
+  const r = await abrirDatos(dni);
+  estado.sesion = true; estado.usuario = r.nombre; estado.rol = r.rol; estado.puedeEscribir = true; estado.puedeBorrar = true;
+  cargarModelo(r.datos);
+  $('#login').hidden = true;
+  await recargar();
+}
+
+// ───────────────────────── Compartir y respaldo ─────────────────────────
+function textoReporte(r) {
+  return [`REPORTE DE CAMPO · ${(TIPOS[r.tipo] || TIPOS.otro).nombre}`, `Técnico: ${nombrePersona(r.tecnico)}`, `Fecha: ${r.fecha}${r.ref ? ' · ' + r.ref : ''}`,
+    r.hallazgo ? `Hallazgo: ${r.hallazgo}` : '', r.contexto ? `Dato de la Torre: ${r.contexto}` : '', r.detalle ? `Detalle: ${r.detalle}` : '',
+    r.accion ? `Acción: ${r.accion}` : '', `Estado: ${r.estado === 'cerrado' ? 'Cerrado' : 'Abierto'}`, `Supervisor: ${r.autor || estado.usuario}`].filter(Boolean).join('\n');
+}
+async function archivosDe(r) {
+  const out = [];
+  for (const e of r.evidencias || []) {
+    const a = await tx('archivos', 'readonly', s => pedir(s.get(e.id))).catch(() => null);
+    if (a && a.blob) out.push(new File([a.blob], e.nombre || (e.id + (/video/.test(a.tipo) ? '.mp4' : '.jpg')), { type: a.tipo }));
+  }
+  return out;
+}
+function descargar(blob, nombre) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+async function compartirReporte(r, boton) {
+  const texto = r._texto || textoReporte(r); const files = await archivosDe(r);
+  try {
+    if (navigator.canShare && files.length && navigator.canShare({ files })) { await navigator.share({ title: 'Reporte de campo MYM', text: texto, files }); return; }
+    if (navigator.share) { await navigator.share({ title: 'Reporte de campo MYM', text: texto }); if (files.length) files.forEach(f => descargar(f, f.name)); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(texto); } catch (_) { }
+  files.forEach(f => descargar(f, f.name));
+  boton.textContent = files.length ? 'Texto copiado y fotos descargadas' : 'Texto copiado';
+}
+const aB64 = blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+async function descargarRespaldo(boton) {
+  boton.disabled = true; boton.textContent = 'Preparando…';
+  try {
+    const archivos = [];
+    for (const a of await todos('archivos')) archivos.push({ _id: a._id, tipo: a.tipo, nombre: a.nombre, b64: await aB64(a.blob) });
+    const j = { app: 'supervisor-mym', v: 1, exportado: new Date().toISOString(), por: estado.usuario, reportes: await todos('reportes'), inspecciones: await todos('inspecciones'), archivos };
+    descargar(new Blob([JSON.stringify(j)], { type: 'application/json' }), `respaldo-supervisor-${hoy()}.json`);
+    boton.textContent = 'Respaldo descargado';
+  } catch (e) { boton.textContent = 'No se pudo: ' + e.message; }
+  finally { boton.disabled = false; }
+}
+async function importarRespaldo(f, msg) {
+  try {
+    const j = JSON.parse(await f.text());
+    if (j.app !== 'supervisor-mym') throw new Error('No es un respaldo del aplicativo.');
+    for (const a of j.archivos || []) { const blob = new Blob([deB64(a.b64)], { type: a.tipo }); await tx('archivos', 'readwrite', s => s.put({ _id: a._id, blob, tipo: a.tipo, nombre: a.nombre })); }
+    for (const r of j.reportes || []) await tx('reportes', 'readwrite', s => s.put(r));
+    for (const r of j.inspecciones || []) await tx('inspecciones', 'readwrite', s => s.put(r));
+    msg.textContent = `Importado: ${(j.reportes || []).length} reportes, ${(j.inspecciones || []).length} revisiones, ${(j.archivos || []).length} archivos.`;
+    await recargar();
+  } catch (e) { msg.textContent = 'No se pudo importar: ' + e.message; }
 }
 
 // ───────────────────────── Evidencias ─────────────────────────
@@ -942,6 +1024,14 @@ document.addEventListener('click', async e => {
   if (b.dataset.abrir) { const k = { conv: 'abiertoConv', punt: 'abiertoPunt', aver: 'abiertoAver' }[b.dataset.abrir]; const t = +b.dataset.t; estado[k] = estado[k] === t ? null : t; render(); return; }
   if (b.dataset.quitar) { const [c, k] = b.dataset.quitar.split(':'); EVID[c].splice(+k, 1); pintarEvid(c); return; }
   if (b.matches('[data-insp]')) { abrirInspeccion(b.dataset.insp); return; }
+  if (b.dataset.compartirInsp) {
+    const i = estado.insp.find(x => x._id === b.dataset.compartirInsp); if (!i) return;
+    const malos = (i.items || []).filter(x => ['falta', 'malo', 'regular'].includes(x.e));
+    const texto = [`REVISIÓN DE UNIDAD Y HERRAMIENTAS`, `Técnico: ${nombrePersona(i.tecnico)}`, `Fecha: ${i.fecha}${i.placa ? ' · Placa ' + i.placa : ''}${i.km ? ' · ' + i.km + ' km' : ''}`,
+      `Conformidad: ${f1(i.conformidad)}`, malos.length ? 'Observado:\n' + malos.map(x => `- ${x.n.toLowerCase()}: ${x.e}`).join('\n') : 'Todo conforme', i.obs ? `Observaciones: ${i.obs}` : '', `Supervisor: ${i.autor || estado.usuario}`].filter(Boolean).join('\n');
+    await compartirReporte({ ...i, _texto: texto }, b); return;
+  }
+  if (b.dataset.compartirRep) { const r = estado.reportes.find(x => x._id === b.dataset.compartirRep); if (r) await compartirReporte(r, b); return; }
   if (b.dataset.editarRep) { const r = estado.reportes.find(x => x._id === b.dataset.editarRep); if (r) abrirReporte({ existente: r }); return; }
   if (b.dataset.estadoRep) {
     const r = estado.reportes.find(x => x._id === b.dataset.estadoRep); if (!r) return; b.disabled = true;
@@ -957,56 +1047,37 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr.fila-tec')) { e.preventDefault(); e.target.click(); } });
 
-// Metas y datos
-function pintarMetas() { $('#m-conv').value = METAS.conv; $('#m-inf').value = METAS.inf; $('#m-punt').value = METAS.punt; $('#m-srv').value = servidor(); }
+// Metas y respaldo
+function pintarMetas() { $('#m-conv').value = METAS.conv; $('#m-inf').value = METAS.inf; $('#m-punt').value = METAS.punt; }
 $('#btn-metas').addEventListener('click', async () => {
   const m = { conv: +$('#m-conv').value || METAS_DEF.conv, inf: +$('#m-inf').value || METAS_DEF.inf, punt: +$('#m-punt').value || METAS_DEF.punt };
-  try { await api('PUT', '/api/metas', m); METAS = { ...METAS_DEF, ...m }; render(); $('#metas-estado').textContent = 'Metas guardadas para todos.'; } catch (e) { $('#metas-estado').textContent = mensajeError(e); }
+  await api('PUT', '/api/metas', m); METAS = { ...METAS_DEF, ...m }; render(); $('#metas-estado').textContent = 'Metas guardadas en este equipo.';
 });
-$('#a-torre').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  const msg = $('#torre-estado'); msg.textContent = 'Leyendo archivo…';
-  try {
-    const j = JSON.parse(await f.text());
-    msg.textContent = 'Subiendo al servidor…';
-    const r = await api('PUT', '/api/torre', j);
-    msg.textContent = `Listo: ${r.ordenes} órdenes cargadas.`;
-    await recargar(true);
-  } catch (er) { msg.textContent = er instanceof SyntaxError ? 'El archivo no es un JSON válido.' : mensajeError(er); }
-});
+$('#btn-respaldo').addEventListener('click', e => descargarRespaldo(e.currentTarget));
+$('#a-respaldo').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await importarRespaldo(f, $('#respaldo-estado')); });
 
 // ───────────────────────── Sesión ─────────────────────────
 $('#form-login').addEventListener('submit', async e => {
   e.preventDefault();
-  const btn = $('#l-entrar'); btn.disabled = true; $('#l-msg').textContent = 'Entrando…';
+  const dni = $('#l-dni').value.replace(/\D/g, '');
+  if (!/^\d{8}$/.test(dni)) { $('#l-msg').textContent = 'El DNI tiene 8 dígitos.'; return; }
+  const btn = $('#l-entrar'); btn.disabled = true; $('#l-msg').textContent = 'Abriendo los datos…';
   try {
-    const srv = $('#l-srv').value.trim().replace(/\/+$/, '');
-    if (srv && srv !== SRV_DEF) lsSet(LS.srv, srv); else lsSet(LS.srv, null);
-    const j = await api('POST', '/api/login', { dni: $('#l-dni').value.replace(/\D/g, '') });
-    estado.sesion = j.token; lsSet(LS.token, j.token);
+    await entrar(dni);
+    lsSet(LS.dni, dni);
     $('#l-dni').value = ''; $('#l-msg').textContent = '';
-    $('#login').hidden = true;
-    await recargar();
-  } catch (er) { $('#l-msg').textContent = mensajeError(er); }
+  } catch (er) { $('#l-msg').textContent = er.message; }
   finally { btn.disabled = false; }
 });
-$('#m-srv-guardar').addEventListener('click', () => { const v = $('#m-srv').value.trim().replace(/\/+$/, ''); lsSet(LS.srv, v && v !== SRV_DEF ? v : null); cerrarSesion('Servidor cambiado: vuelve a entrar.'); });
 
 // ───────────────────────── Arranque ─────────────────────────
 armarEvid('rep'); armarEvid('insp');
 irA();
-$('#l-srv').value = servidor();
-estado.sesion = lsGet(LS.token);
-if (!estado.sesion) { $('#login').hidden = false; }
-else {
-  // Muestra al instante lo último descargado en este equipo y luego actualiza
-  try { const c = JSON.parse(lsGet(LS.cache) || 'null'); if (c) { estado.usuario = c.usuario; estado.rol = c.rol; estado.reportes = c.reportes || []; estado.insp = c.inspecciones || []; if (c.metas) METAS = { ...METAS_DEF, ...c.metas }; if (c.torre) { cargarModelo(c.torre); render(); } } } catch (_) { }
-  pintarSesion(); pintarMetas();
-  recargar();
-}
-setInterval(() => { if (estado.sesion && document.visibilityState === 'visible' && !$('#dlg-rep').open) recargar(true); }, 90000);
-document.addEventListener('visibilitychange', () => { if (estado.sesion && document.visibilityState === 'visible') recargar(true); });
+const dniGuardado = lsGet(LS.dni);
+if (!dniGuardado) { $('#login').hidden = false; }
+else entrar(dniGuardado).catch(er => cerrarSesion(er.codigo === 401 ? 'Tu acceso cambió. Vuelve a escribir tu DNI.' : er.message));
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
 // Instalar como app en Android/Chrome
 let instalar = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instalar = e; $('#btn-instalar').hidden = false; });
